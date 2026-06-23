@@ -12,6 +12,17 @@ function formatSerie(nro: string, corr: number) {
   return `${nro}-${String(corr).padStart(5, "0")}`;
 }
 
+function getUsuarioJWT(): string {
+  const token = localStorage.getItem("jwt_token");
+  if (!token) return "—";
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return (payload.sub || payload.name || payload.username || "—").toUpperCase();
+  } catch {
+    return "—";
+  }
+}
+
 export default function ComprobantePage() {
   const [comprobantes, setComprobantes] = useState<Comprobante[]>([]);
   const [mantenimientos, setMants]      = useState<Mantenimiento[]>([]);
@@ -26,6 +37,7 @@ export default function ComprobantePage() {
   const [formError, setFormError]       = useState("");
 
   const [modalVer, setModalVer]         = useState<Comprobante | null>(null);
+  const [search, setSearch]             = useState("");
 
   const cargar = async () => {
     try {
@@ -110,6 +122,15 @@ export default function ComprobantePage() {
     catch { setError("Error al cargar detalle."); }
   };
 
+  const filtrados = comprobantes.filter(c => {
+    const q = search.toLowerCase();
+    return (
+      c.clienteNombre.toLowerCase().includes(q) ||
+      c.clienteDocumento.includes(q) ||
+      c.motoPlaca.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div>
       {/* Banner */}
@@ -138,6 +159,19 @@ export default function ComprobantePage() {
         )}
         {error && <div className="alert alert-error">{error}</div>}
 
+        <div className="toolbar">
+          <div className="search-box">
+            <input
+              placeholder="Buscar por nombre, RUC/DNI o placa..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <span className="count-tag">
+            Mostrando <strong>{filtrados.length}</strong> de {comprobantes.length}
+          </span>
+        </div>
+
         {loading ? (
           <div className="loading-box">
             <div className="loading-ring" />
@@ -163,7 +197,7 @@ export default function ComprobantePage() {
                 </tr>
               </thead>
               <tbody>
-                {comprobantes.map(c => (
+                {filtrados.map(c => (
                   <tr key={c.cod_Comprobante}>
                     <td className="td-num">{c.cod_Comprobante}</td>
                     <td>
@@ -185,8 +219,10 @@ export default function ComprobantePage() {
                     </td>
                   </tr>
                 ))}
-                {comprobantes.length === 0 && (
-                  <tr className="empty-row"><td colSpan={12}>Sin comprobantes emitidos</td></tr>
+                {filtrados.length === 0 && (
+                  <tr className="empty-row">
+                    <td colSpan={12}>{search ? "Sin resultados para la búsqueda" : "Sin comprobantes emitidos"}</td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -328,76 +364,93 @@ export default function ComprobantePage() {
         </div>
       )}
 
-      {/* ── Modal ver detalle ────────────────────────────────────────────────── */}
+      {/* ── Ticket / Recibo térmico ──────────────────────────────────────────── */}
       {modalVer && (
-        <div className="modal-overlay">
-          <div className="modal modal-md">
-            <div className="modal-head">
-              <div>
-                <p className="modal-head-sub">{modalVer.tipoComprobante}</p>
-                <h3 className="modal-head-title">{formatSerie(modalVer.nroSerie, modalVer.correlativo)}</h3>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ color: "#94A3B8", fontSize: 12 }}>{modalVer.fechaEmision}</span>
-                <button className="modal-x" onClick={() => setModalVer(null)}>×</button>
-              </div>
-            </div>
-            <div className="modal-body">
-              <div className="receipt-grid">
-                <div className="receipt-field">
-                  <p className="rf-label">Cliente</p>
-                  <p className="rf-value">{modalVer.clienteNombre}</p>
-                </div>
-                <div className="receipt-field">
-                  <p className="rf-label">Documento</p>
-                  <p className="rf-value">{modalVer.tipoDocumento} — {modalVer.clienteDocumento}</p>
-                </div>
-                <div className="receipt-field">
-                  <p className="rf-label">Placa</p>
-                  <p className="rf-value">{modalVer.motoPlaca}</p>
-                </div>
-                <div className="receipt-field">
-                  <p className="rf-label">Costo M.O.</p>
-                  <p className="rf-value">S/ {modalVer.costoManoObra.toFixed(2)}</p>
-                </div>
-              </div>
+        <div className="modal-overlay" onClick={() => setModalVer(null)}>
+          <div className="ticket" onClick={e => e.stopPropagation()}>
 
-              <p className="sec-label" style={{ marginBottom: 10 }}>Detalle de repuestos</p>
-              <div className="table-wrap" style={{ marginBottom: 16 }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Repuesto</th>
-                      <th style={{ textAlign: "right" }}>P. Unit.</th>
-                      <th style={{ textAlign: "right" }}>Cant.</th>
-                      <th style={{ textAlign: "right" }}>Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(modalVer.detalles ?? []).map(d => (
-                      <tr key={d.cod_Detalle}>
-                        <td className="td-bold">{d.nom_Repuesto}</td>
-                        <td style={{ textAlign: "right" }} className="td-muted">S/ {d.precioUnitario.toFixed(2)}</td>
-                        <td style={{ textAlign: "right" }} className="td-muted">{d.cantidad}</td>
-                        <td style={{ textAlign: "right", fontWeight: 600 }}>S/ {(d.precioUnitario * d.cantidad).toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            {/* Cabecera empresa */}
+            <div className="tk-head">
+              <p className="tk-brand">MotoSalud</p>
+              <p className="tk-razon">TALLER DE MOTOS</p>
+              <p className="tk-info">RUC: 20987654321</p>
+              <p className="tk-info">AV. ESPAÑA - TRUJILLO</p>
+            </div>
 
-              <div className="totals-box">
-                <div className="total-row"><span style={{ color: "var(--muted)" }}>SubTotal (sin IGV)</span><span>S/ {modalVer.subTotal.toFixed(2)}</span></div>
-                <div className="total-row"><span style={{ color: "var(--muted)" }}>IGV 18%</span><span>S/ {modalVer.igv.toFixed(2)}</span></div>
-                <div className="total-row-main">
-                  <span className="total-main-lbl">TOTAL</span>
-                  <span className="total-main-val">S/ {modalVer.total.toFixed(2)}</span>
-                </div>
+            <div className="tk-dash" />
+
+            {/* Tipo y número */}
+            <div className="tk-center">
+              <p className="tk-tipo">
+                {modalVer.tipoComprobante === "BOLETA" ? "BOLETA ELECTRÓNICA" : "FACTURA ELECTRÓNICA"}
+              </p>
+              <p className="tk-numero">{formatSerie(modalVer.nroSerie, modalVer.correlativo)}</p>
+              <p className="tk-info">FECHA EMISIÓN: {modalVer.fechaEmision}</p>
+            </div>
+
+            <div className="tk-dash" />
+
+            {/* Personal atendido */}
+            <p className="tk-field"><span className="tk-key">ATENDIDO POR:</span> {getUsuarioJWT()}</p>
+
+            <div className="tk-dash" />
+
+            {/* Cliente */}
+            <p className="tk-section">DATOS DEL CLIENTE</p>
+            <p className="tk-field"><span className="tk-key">RAZÓN SOCIAL:</span> {modalVer.clienteNombre.toUpperCase()}</p>
+            <p className="tk-field"><span className="tk-key">{modalVer.tipoDocumento}:</span> {modalVer.clienteDocumento}</p>
+
+            <div className="tk-dash" />
+
+            {/* Servicio */}
+            <p className="tk-section">DATOS DEL SERVICIO</p>
+            <p className="tk-field"><span className="tk-key">PLACA MOTO:</span> {modalVer.motoPlaca}</p>
+            <p className="tk-field"><span className="tk-key">MANO DE OBRA:</span> S/ {modalVer.costoManoObra.toFixed(2)}</p>
+
+            <div className="tk-dash" />
+
+            {/* Detalle repuestos */}
+            <p className="tk-section">DESCRIPCIÓN</p>
+            <div className="tk-det-header">
+              <span className="tk-det-name">ARTÍCULO</span>
+              <span className="tk-det-um">U.M.</span>
+              <span className="tk-det-qty">CANT.</span>
+              <span className="tk-det-tot">TOTAL</span>
+            </div>
+            <div className="tk-dash-thin" />
+            {(modalVer.detalles ?? []).map(d => (
+              <div key={d.cod_Detalle} className="tk-det-row">
+                <span className="tk-det-name">{d.nom_Repuesto.toUpperCase()}</span>
+                <span className="tk-det-um">UND</span>
+                <span className="tk-det-qty">{d.cantidad}</span>
+                <span className="tk-det-tot">S/{(d.precioUnitario * d.cantidad).toFixed(2)}</span>
               </div>
+            ))}
+
+            <div className="tk-dash" />
+
+            {/* Totales */}
+            <div className="tk-total-row"><span>OP. GRAVADAS</span><span>S/ {modalVer.subTotal.toFixed(2)}</span></div>
+            <div className="tk-total-row tk-muted"><span>IGV 18%</span><span>S/ {modalVer.igv.toFixed(2)}</span></div>
+
+            <div className="tk-dash" />
+
+            <div className="tk-total-final">
+              <span>IMPORTE TOTAL A PAGAR</span>
+              <span>S/ {modalVer.total.toFixed(2)}</span>
             </div>
-            <div className="modal-foot">
-              <button className="btn btn-ghost btn-md" onClick={() => setModalVer(null)}>Cerrar</button>
-            </div>
+
+            <div className="tk-dash" />
+
+            <p className="tk-footer">¡Gracias por su preferencia!</p>
+
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ display: "block", margin: "16px auto 0" }}
+              onClick={() => setModalVer(null)}
+            >
+              Cerrar
+            </button>
           </div>
         </div>
       )}
