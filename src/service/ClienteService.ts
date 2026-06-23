@@ -4,14 +4,18 @@ import type { Cliente, ClienteFormData } from "../type/Cliente";
 const BASE = `${BASE_URLS.cliente}/api/cliente`;
 
 export const ClienteService = {
-  getAll: () => api.get<Cliente[]>(`${BASE}/listarClientes`),
+  getAll: (): Promise<Cliente[]> =>
+    api.get<Cliente[]>(`${BASE}/listarClientes`),
 
-  getById: (codigo: number) => api.get<Cliente>(`${BASE}/buscarCliente/${codigo}`),
+  getById: (codigo: number): Promise<Cliente> =>
+    api.get<Cliente>(`${BASE}/buscarCliente/${codigo}`),
 
-  create: (data: ClienteFormData) => api.post<Cliente>(`${BASE}/crearCliente`, data),
+  create: (data: ClienteFormData): Promise<Cliente> =>
+    api.post<Cliente>(`${BASE}/crearCliente`, data),
 
-  update: (codigo: number, data: ClienteFormData) =>
+  update: (codigo: number, data: ClienteFormData): Promise<string> =>
     api.put<string>(`${BASE}/editarCliente/${codigo}`, data),
 
-  delete: (codigo: number) => api.delete<void>(`${BASE}/eliminarCliente/${codigo}`),
+  delete: (codigo: number): Promise<void> =>
+    api.delete<void>(`${BASE}/eliminarCliente/${codigo}`),
 };

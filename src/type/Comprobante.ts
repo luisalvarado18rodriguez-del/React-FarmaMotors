@@ -1,33 +1,35 @@
-
 export interface DetalleComprobante {
   cod_Detalle: number;
   cod_Repuesto: number;
   nom_Repuesto: string;
-  precio: number;
+  precioUnitario: number;
   cantidad: number;
 }
 
-
-export interface ComprobanteResponse {
+export interface Comprobante {
   cod_Comprobante: number;
   tipoComprobante: string;
+  nroSerie: string;
+  correlativo: number;
   cod_Mantenimiento: number;
-  clienteDocumento: string;
   clienteNombre: string;
+  tipoDocumento: string;
+  clienteDocumento: string;
   motoPlaca: string;
   costoManoObra: number;
-  subtotal: number;
+  subTotal: number;
   igv: number;
   total: number;
   fechaEmision: string;
   detalles: DetalleComprobante[];
 }
 
+export interface DetalleRequest {
+  cod_Repuesto: number;
+  cantidad: number;
+}
 
 export interface ComprobanteRequest {
   cod_Mantenimiento: number;
-  repuestos: {
-    cod_Repuesto: number;
-    cantidad: number;
-  }[];
+  repuestos: DetalleRequest[];
 }

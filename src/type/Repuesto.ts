@@ -1,5 +1,6 @@
 export interface Repuesto {
   cod_Repuesto: number;
+  cod_Proveedor: number;
   nom_Repuesto: string;
   marcaRep: string;
   descripRep: string;
@@ -7,4 +8,11 @@ export interface Repuesto {
   stock: number;
 }
 
-export type RepuestoFormData = Omit<Repuesto, "cod_Repuesto">;
+export interface RepuestoFormData {
+  cod_Proveedor: number;
+  nom_Repuesto: string;
+  marcaRep: string;
+  descripRep: string;
+  precioUnitario: number;
+  stock: number;
+}

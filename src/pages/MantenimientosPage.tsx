@@ -1,319 +1,258 @@
-import React, { useState, useEffect } from "react";
-import type { ChangeEvent, FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { MantenimientoService } from "../service/MantenimientoService";
 import { ClienteService } from "../service/ClienteService";
-import type { Mantenimiento, MantenimientoFormData } from "../type/Mantenimiento";
+import type { Mantenimiento, MantenimientoFormData, EstadoMant } from "../type/Mantenimiento";
 import type { Cliente } from "../type/Cliente";
 
-type MantenimientoInput = MantenimientoFormData;
-type FiltroEstado = "Todos" | "Pendiente" | "En Proceso" | "Completado";
+const ESTADOS_FORM: EstadoMant[] = ["Pendiente", "En Proceso", "Finalizado"];
 
-const INITIAL_FORM: MantenimientoInput = {
-  cod_Cliente: 0,
-  motoPlaca: "",
-  motoModelo: "",
-  descripcionAveria: "",
-  costoManoObra: 0,
-  estado: "Pendiente"
+const ESTADO_BADGE: Record<EstadoMant, string> = {
+  Pendiente:    "badge-pending",
+  "En Proceso": "badge-process",
+  Completado:   "badge-done",
+  Finalizado:   "badge-final",
+  Entregado:    "badge-delivered",
+};
+
+const EMPTY: MantenimientoFormData = {
+  cod_Cliente: 0, motoPlaca: "", motoModelo: "",
+  descripcionAveria: "", costoManoObra: 0, estado: "Pendiente",
 };
 
 export default function MantenimientosPage() {
-  const [mantenimientos, setMantenimientos] = useState<Mantenimiento[]>([]);
+  const [lista, setLista]       = useState<Mantenimiento[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [errorMsg, setErrorMsg] = useState<string>("");
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [formData, setFormData] = useState<MantenimientoInput>(INITIAL_FORM);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState("");
+  const [search, setSearch]     = useState("");
+  const [modal, setModal]       = useState(false);
+  const [editId, setEditId]     = useState<number | null>(null);
+  const [form, setForm]         = useState<MantenimientoFormData>(EMPTY);
+  const [saving, setSaving]     = useState(false);
 
-  // Estado para controlar el filtro de la tabla
-  const [filtroActivo, setFiltroActivo] = useState<FiltroEstado>("Todos");
-
-  const cargarDatos = async () => {
-    setLoading(true);
-    setErrorMsg("");
+  const cargar = async () => {
     try {
-      const [mantsRes, clientesRes] = await Promise.all([
-        MantenimientoService.getAll(),
-        ClienteService.getAll()
-      ]);
-      setMantenimientos(mantsRes);
-      setClientes(clientesRes);
+      setLoading(true);
+      const [mants, clts] = await Promise.all([MantenimientoService.getAll(), ClienteService.getAll()]);
+      setLista(mants); setClientes(clts); setError("");
     } catch {
-      setErrorMsg("Error de conexión con Taller-Service o Cliente-Service (verifica que ambos microservicios estén corriendo)");
+      setError("Error al cargar mantenimientos.");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    cargarDatos();
-  }, []);
+  useEffect(() => { cargar(); }, []);
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev: MantenimientoInput) => ({ ...prev, [name]: value }));
+  const filtrados = lista.filter(m =>
+    m.motoPlaca.toLowerCase().includes(search.toLowerCase()) ||
+    m.motoModelo.toLowerCase().includes(search.toLowerCase()) ||
+    nomCliente(m.cod_Cliente).toLowerCase().includes(search.toLowerCase())
+  );
+
+  const pendientes  = lista.filter(m => m.estado === "Pendiente").length;
+  const enProceso   = lista.filter(m => m.estado === "En Proceso").length;
+
+  function nomCliente(id: number) {
+    return clientes.find(c => c.codCliente === id)?.nomRazSocial ?? `#${id}`;
+  }
+
+  const abrirCrear = () => {
+    setForm({ ...EMPTY, cod_Cliente: clientes[0]?.codCliente ?? 0 });
+    setEditId(null); setModal(true);
   };
 
-  const openEdit = (m: Mantenimiento) => {
-    setEditingId(m.cod_Mantenimiento);
-    setFormData({
-      cod_Cliente: m.cod_Cliente,
-      motoPlaca: m.motoPlaca,
-      motoModelo: m.motoModelo,
-      descripcionAveria: m.descripcionAveria,
-      costoManoObra: m.costoManoObra,
-      estado: m.estado
-    });
-    setIsModalOpen(true);
+  const abrirEditar = (m: Mantenimiento) => {
+    setForm({ cod_Cliente: m.cod_Cliente, motoPlaca: m.motoPlaca, motoModelo: m.motoModelo, descripcionAveria: m.descripcionAveria, costoManoObra: m.costoManoObra, estado: m.estado });
+    setEditId(m.cod_Mantenimiento); setModal(true);
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-
-    const payload = {
-      ...formData,
-      cod_Cliente: Number(formData.cod_Cliente) || 0,
-      costoManoObra: Number(formData.costoManoObra) || 0
-    };
-
-    if (!payload.cod_Cliente) {
-      alert("Selecciona un cliente registrado antes de guardar.");
-      return;
-    }
-
+  const guardar = async (e: { preventDefault(): void }) => {
+    e.preventDefault(); setSaving(true);
     try {
-      if (editingId !== null) {
-        await MantenimientoService.update(editingId, payload);
-      } else {
-        await MantenimientoService.create(payload);
-      }
-      setIsModalOpen(false);
-      cargarDatos();
-    } catch {
-      alert("Error al procesar la operación en el servidor.");
-    }
+      editId !== null ? await MantenimientoService.update(editId, form) : await MantenimientoService.create(form);
+      setModal(false); cargar();
+    } catch { setError("Error al guardar mantenimiento."); }
+    finally { setSaving(false); }
   };
 
-  const handleDelete = async (id: number) => {
-    if (confirm(`¿Eliminar orden de mantenimiento #${id}?`)) {
-      try {
-        await MantenimientoService.delete(id);
-        cargarDatos();
-      } catch {
-        alert("No se pudo eliminar el registro.");
-      }
-    }
+  const eliminar = async (id: number) => {
+    if (!confirm("¿Eliminar este mantenimiento?")) return;
+    try { await MantenimientoService.delete(id); cargar(); }
+    catch { setError("Error al eliminar mantenimiento."); }
   };
-
-  // Cálculos de totales en memoria
-  const totalMants = mantenimientos.length;
-  const pendientes = mantenimientos.filter(m => m.estado === "Pendiente").length;
-  const enProceso = mantenimientos.filter(m => m.estado === "En Proceso").length;
-  const completados = mantenimientos.filter(m => m.estado === "Completado").length;
-
-  // Filtrado lógico antes de renderizar la tabla
-  const mantsFiltrados = mantenimientos.filter(m => {
-    if (filtroActivo === "Todos") return true;
-    return m.estado === filtroActivo;
-  });
 
   return (
-    <>
-      <style>{`
-        body { margin: 0; background-color: #F8FAFC; font-family: system-ui, -apple-system, sans-serif; }
-        .page-wrapper { padding: 40px; width: 100%; box-sizing: border-box; }
-        
-        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; width: 100%; }
-        .page-title { margin: 0; font-size: 1.5rem; font-weight: 700; color: #0F2744; letter-spacing: -0.5px; }
-        
-        /* BARRA DE FILTROS ESTILO TABS (Adios cubos IA) */
-        .tabs-container { display: flex; gap: 8px; border-bottom: 1px solid #E2E8F0; margin-bottom: 20px; width: 100%; padding-bottom: 2px; }
-        .tab-btn { background: none; border: none; padding: 8px 16px; font-size: 14px; font-weight: 500; color: #64748B; cursor: pointer; position: relative; transition: color 0.2s; display: flex; align-items: center; gap: 8px; }
-        .tab-btn:hover { color: #0F2744; }
-        .tab-btn.active { color: #0F2744; font-weight: 600; }
-        .tab-btn.active::after { content: ""; position: absolute; bottom: -3px; left: 0; width: 100%; height: 2px; background: #0F2744; }
-        
-        /* Contador estilo píldora dentro de la pestaña */
-        .tab-badge { background: #E2E8F0; color: #475569; font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 10px; }
-        .tab-btn.active .tab-badge { background: #0F2744; color: #fff; }
-
-        /* Tabla */
-        .custom-table { border-radius: 10px; overflow: hidden; background: #fff; border: 1px solid #DDE4ED; box-shadow: 0 4px 12px rgba(26,35,50,0.02); width: 100%; }
-        .custom-table table { width: 100%; border-collapse: collapse; text-align: left; }
-        .custom-table th { background: #F8FAFC; padding: 16px; font-weight: 600; font-size: 12px; color: #4A5D78; border-bottom: 1px solid #E2E8F0; text-transform: uppercase; letter-spacing: 0.5px; }
-        .custom-table td { padding: 16px; border-bottom: 1px solid #F1F5F9; font-size: 14px; color: #1E293B; vertical-align: middle; }
-        .custom-table tr:hover td { background-color: #F8FAFC; }
-        
-        /* Quitar flechas de inputs numéricos */
-        input[type="number"]::-webkit-outer-spin-button,
-        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        input[type="number"] { -moz-appearance: textfield; }
-        
-        /* Badges de estado modernos */
-        .status-badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
-        .status-pendiente { background: #FFF7ED; color: #C2410C; }
-        .status-proceso { background: #EFF6FF; color: #1D4ED8; }
-        .status-completado { background: #F0FDF4; color: #15803D; }
-        
-        /* Botones */
-        .btn-primary { background: #0F2744; color: #fff; border: none; cursor: pointer; transition: 0.2s; }
-        .btn-primary:hover { background: #1A365D; }
-        .btn-secondary { background: #fff; color: #475569; border: 1px solid #CBD5E1; cursor: pointer; transition: 0.2s; }
-        .btn-secondary:hover { background: #F1F5F9; }
-        
-        .action-btn { background: none; border: none; cursor: pointer; font-size: 15px; padding: 6px 10px; border-radius: 6px; transition: all 0.2s; }
-        .btn-edit { color: #1A6FC4; background: #E8F0FE; }
-        .btn-edit:hover { background: #D2E3FC; }
-        .btn-del { color: #C0392B; background: #FCE8E6; margin-left: 6px; }
-        .btn-del:hover { background: #FAD2CF; }
-
-        /* Modal */
-        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 39, 68, 0.6); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-        .modern-modal { background: #fff; padding: 32px; border-radius: 12px; width: 100%; max-width: 600px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid #E2E8F0; }
-        .modal-header-title { font-size: 1.3rem; font-weight: 700; color: #0F2744; margin: 0 0 20px 0; border-bottom: 1px solid #F1F5F9; padding-bottom: 12px; }
-        .form-group { margin-bottom: 16px; }
-        .modern-input { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #CBD5E1; font-size: 14px; color: #1E293B; box-sizing: border-box; outline: none; }
-        .modern-input:focus { border-color: #1A6FC4; box-shadow: 0 0 0 3px rgba(26,111,196,0.1); }
-        .input-label { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 6px; display: block; }
-        .field-hint { font-size: 12px; color: #C2410C; margin-top: 6px; }
-      `}</style>
-
-      <div className="page-wrapper">
-        <div className="page-header">
-          <div>
-            <h2 className="page-title">Gestión de Órdenes de Mantenimiento</h2>
-          </div>
-          <button className="btn-primary" style={{ padding: "10px 20px", borderRadius: "8px", fontWeight: 600 }} onClick={() => { setEditingId(null); setFormData(INITIAL_FORM); setIsModalOpen(true); }}>
-            + Registrar Nueva Orden
-          </button>
+    <div>
+      {/* Banner */}
+      <div className="mod-banner">
+        <div>
+          <p className="mod-eyebrow">Módulo</p>
+          <h2 className="mod-title">Mantenimientos</h2>
+          <p className="mod-sub">Órdenes de servicio y reparaciones</p>
         </div>
+        <div className="mod-right">
+          {pendientes > 0 && (
+            <div className="mod-stat">
+              <span className="mod-stat-val" style={{ color: "#FCD34D" }}>{pendientes}</span>
+              <span className="mod-stat-lbl">Pendientes</span>
+            </div>
+          )}
+          {enProceso > 0 && (
+            <div className="mod-stat">
+              <span className="mod-stat-val" style={{ color: "#93C5FD" }}>{enProceso}</span>
+              <span className="mod-stat-lbl">En proceso</span>
+            </div>
+          )}
+          <div className="mod-stat">
+            <span className="mod-stat-val">{lista.length}</span>
+            <span className="mod-stat-lbl">Total</span>
+          </div>
+          <button className="btn btn-primary btn-lg" onClick={abrirCrear}>+ Nuevo</button>
+        </div>
+      </div>
 
-        {errorMsg && <div style={{ background: "#FEF2F2", color: "#991B1B", padding: "12px", borderRadius: "8px", marginBottom: "20px", border: "1px solid #F87171" }}>⚠️ {errorMsg}</div>}
+      <div className="page-content">
+        {error && <div className="alert alert-error">{error}</div>}
 
-        <div className="tabs-container">
-          <button className={`tab-btn ${filtroActivo === "Todos" ? "active" : ""}`} onClick={() => setFiltroActivo("Todos")}>
-            Todos los trabajos <span className="tab-badge">{totalMants}</span>
-          </button>
-          <button className={`tab-btn ${filtroActivo === "Pendiente" ? "active" : ""}`} onClick={() => setFiltroActivo("Pendiente")}>
-            Pendientes <span className="tab-badge">{pendientes}</span>
-          </button>
-          <button className={`tab-btn ${filtroActivo === "En Proceso" ? "active" : ""}`} onClick={() => setFiltroActivo("En Proceso")}>
-            En Proceso <span className="tab-badge">{enProceso}</span>
-          </button>
-          <button className={`tab-btn ${filtroActivo === "Completado" ? "active" : ""}`} onClick={() => setFiltroActivo("Completado")}>
-            Completados <span className="tab-badge">{completados}</span>
-          </button>
+        <div className="toolbar">
+          <div className="search-box">
+            <input
+              placeholder="Buscar por placa, modelo o cliente..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <span className="count-tag">
+            Mostrando <strong>{filtrados.length}</strong> de {lista.length}
+          </span>
         </div>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: "60px", color: "#6B7A90", background: "#fff", borderRadius: "10px", border: "1px solid #DDE4ED" }}>
-            <span style={{ fontSize: "18px" }}>Cargando datos del taller mecánico...</span>
+          <div className="loading-box">
+            <div className="loading-ring" />
+            <p className="loading-text">Cargando mantenimientos...</p>
           </div>
         ) : (
-          <div className="custom-table">
+          <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>Código</th><th>Cliente</th><th>Documento</th><th>Placa</th><th>Modelo Moto</th><th>Mano Obra</th><th>Estado</th><th style={{ textAlign: "center" }}>Acciones</th></tr>
+                <tr>
+                  <th>#</th>
+                  <th>Cliente</th>
+                  <th>Placa</th>
+                  <th>Modelo</th>
+                  <th>Avería</th>
+                  <th>Costo M.O.</th>
+                  <th>Estado</th>
+                  <th>Fecha ingreso</th>
+                  <th>Acciones</th>
+                </tr>
               </thead>
               <tbody>
-                {mantsFiltrados.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} style={{ textAlign: "center", padding: "30px", color: "#6B7A90" }}>
-                      No hay órdenes en el estado "{filtroActivo}".
+                {filtrados.map(m => (
+                  <tr key={m.cod_Mantenimiento}>
+                    <td className="td-num">{m.cod_Mantenimiento}</td>
+                    <td className="td-bold">{nomCliente(m.cod_Cliente)}</td>
+                    <td className="td-mono">{m.motoPlaca}</td>
+                    <td className="td-muted">{m.motoModelo}</td>
+                    <td className="td-muted" style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.descripcionAveria}</td>
+                    <td className="td-bold">S/ {m.costoManoObra.toFixed(2)}</td>
+                    <td>
+                      <span className={`badge ${ESTADO_BADGE[m.estado] ?? "badge-pending"}`}>{m.estado}</span>
+                    </td>
+                    <td className="td-muted">{m.fechaIngreso}</td>
+                    <td>
+                      <div className="td-acts">
+                        <button className="btn btn-edit btn-sm" onClick={() => abrirEditar(m)}>Editar</button>
+                        <button className="btn btn-delete btn-sm" onClick={() => eliminar(m.cod_Mantenimiento)}>Eliminar</button>
+                      </div>
                     </td>
                   </tr>
-                ) : (
-                  mantsFiltrados.map(m => {
-                    const cliente = clientes.find(c => c.codCliente === m.cod_Cliente);
-                    return (
-                      <tr key={m.cod_Mantenimiento}>
-                        <td><strong style={{ color: "#64748B" }}>#{m.cod_Mantenimiento}</strong></td>
-                        <td style={{ fontWeight: 600, color: "#0F2744" }}>{cliente?.nomRazSocial ?? "Cliente no encontrado"}</td>
-                        <td>{cliente ? `${cliente.tipoDocumento} ${cliente.numDocumento}` : "—"}</td>
-                        <td><span style={{ background: "#F1F5F9", padding: "4px 8px", borderRadius: "4px", fontSize: "13px", fontWeight: 600 }}>{m.motoPlaca}</span></td>
-                        <td style={{ color: "#475569" }}>{m.motoModelo}</td>
-                        <td style={{ fontWeight: 600 }}>S/ {Number(m.costoManoObra).toFixed(2)}</td>
-                        <td>
-                          <span className={`status-badge ${m.estado === 'Completado' ? 'status-completado' :
-                              m.estado === 'En Proceso' ? 'status-proceso' : 'status-pendiente'
-                            }`}>
-                            ● {m.estado}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: "center" }}>
-                          <button className="action-btn btn-edit" title="Editar orden" onClick={() => openEdit(m)}>✏️</button>
-                          <button className="action-btn btn-del" title="Eliminar orden" onClick={() => handleDelete(m.cod_Mantenimiento)}>🗑️</button>
-                        </td>
-                      </tr>
-                    );
-                  })
+                ))}
+                {filtrados.length === 0 && (
+                  <tr className="empty-row"><td colSpan={9}>Sin mantenimientos registrados</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         )}
+      </div>
 
-        {isModalOpen && (
-          <div className="modal-backdrop">
-            <div className="modern-modal">
-              <h3 className="modal-header-title">
-                {editingId ? `📝 Modificar Orden #${editingId}` : "🛠️ Registrar Nueva Orden"}
-              </h3>
-
-              <form onSubmit={handleSubmit}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                  <div className="form-group" style={{ gridColumn: "span 2" }}>
-                    <label className="input-label">Cliente</label>
-                    <select name="cod_Cliente" className="modern-input" value={formData.cod_Cliente || ""} onChange={handleChange} required>
-                      <option value="" disabled>Selecciona un cliente registrado</option>
+      {/* Modal */}
+      {modal && (
+        <div className="modal-overlay">
+          <div className="modal modal-lg">
+            <div className="modal-head">
+              <div>
+                <p className="modal-head-sub">Mantenimientos</p>
+                <h3 className="modal-head-title">{editId !== null ? "Editar mantenimiento" : "Nuevo mantenimiento"}</h3>
+              </div>
+              <button className="modal-x" onClick={() => setModal(false)}>×</button>
+            </div>
+            <form onSubmit={guardar}>
+              <div className="modal-body">
+                <div className="fgrid">
+                  <div className="fgfull">
+                    <label className="flabel">Cliente</label>
+                    <select className="finput" value={form.cod_Cliente}
+                      onChange={e => setForm({ ...form, cod_Cliente: Number(e.target.value) })} required>
+                      <option value={0} disabled>Seleccionar cliente</option>
                       {clientes.map(c => (
                         <option key={c.codCliente} value={c.codCliente}>
-                          {c.tipoDocumento} {c.numDocumento} — {c.nomRazSocial}
+                          {c.nomRazSocial} — {c.numDocumento}
                         </option>
                       ))}
                     </select>
-                    {clientes.length === 0 && (
-                      <p className="field-hint">
-                        No hay clientes registrados todavía. Ve a la sección Clientes y registra uno antes de crear una orden.
-                      </p>
+                  </div>
+                  <div className="fg">
+                    <label className="flabel">Placa</label>
+                    <input className="finput" value={form.motoPlaca}
+                      onChange={e => setForm({ ...form, motoPlaca: e.target.value })} required />
+                  </div>
+                  <div className="fg">
+                    <label className="flabel">Modelo</label>
+                    <input className="finput" value={form.motoModelo}
+                      onChange={e => setForm({ ...form, motoModelo: e.target.value })} required />
+                  </div>
+                  <div className="fgfull">
+                    <label className="flabel">Descripción de avería</label>
+                    <input className="finput" value={form.descripcionAveria}
+                      onChange={e => setForm({ ...form, descripcionAveria: e.target.value })} required />
+                  </div>
+                  <div className="fg">
+                    <label className="flabel">Costo mano de obra (S/)</label>
+                    <input className="finput" inputMode="decimal" value={form.costoManoObra}
+                      onChange={e => {
+                        const v = e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1");
+                        setForm({ ...form, costoManoObra: v === "" || v === "." ? 0 : parseFloat(v) || 0 });
+                      }} required />
+                  </div>
+                  <div className="fg">
+                    <label className="flabel">Estado</label>
+                    {form.estado === "Entregado" ? (
+                      <select className="finput" value="Entregado" disabled>
+                        <option value="Entregado">Entregado</option>
+                      </select>
+                    ) : (
+                      <select className="finput" value={form.estado}
+                        onChange={e => setForm({ ...form, estado: e.target.value as EstadoMant })}>
+                        {ESTADOS_FORM.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
                     )}
                   </div>
-                  <div className="form-group">
-                    <label className="input-label">Placa Moto</label>
-                    <input type="text" name="motoPlaca" className="modern-input" placeholder="Ej. 1234-ABC" value={formData.motoPlaca} onChange={handleChange} required />
-                  </div>
-                  <div className="form-group">
-                    <label className="input-label">Modelo</label>
-                    <input type="text" name="motoModelo" className="modern-input" placeholder="Ej. Honda CBX" value={formData.motoModelo} onChange={handleChange} required />
-                  </div>
-                  <div className="form-group">
-                    <label className="input-label">Mano de Obra (S/)</label>
-                    <input type="number" step="0.01" min="0" name="costoManoObra" className="modern-input" value={formData.costoManoObra} onChange={handleChange} required />
-                  </div>
-                  <div className="form-group">
-                    <label className="input-label">Estado</label>
-                    <select name="estado" className="modern-input" value={formData.estado} onChange={handleChange}>
-                      <option value="Pendiente">⏳ Pendiente</option>
-                      <option value="En Proceso">⚙️ En Proceso</option>
-                      <option value="Completado">✅ Completado</option>
-                    </select>
-                  </div>
-                  <div className="form-group" style={{ gridColumn: "span 2" }}>
-                    <label className="input-label">Descripción Avería</label>
-                    <textarea name="descripcionAveria" className="modern-input" placeholder="Detalle técnico..." value={formData.descripcionAveria} onChange={handleChange} required rows={3} style={{ resize: "none" }} />
-                  </div>
                 </div>
-
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24, paddingTop: "16px", borderTop: "1px solid #F1F5F9" }}>
-                  <button type="button" className="btn-secondary" style={{ borderRadius: "8px", padding: "10px 18px", fontWeight: 600 }} onClick={() => setIsModalOpen(false)}>Cancelar</button>
-                  <button type="submit" className="btn-primary" style={{ borderRadius: "8px", padding: "10px 22px", fontWeight: 600 }}>Guardar</button>
-                </div>
-              </form>
-            </div>
+              </div>
+              <div className="modal-foot">
+                <button type="button" className="btn btn-ghost btn-md" onClick={() => setModal(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary btn-md" disabled={saving}>
+                  {saving ? "Guardando..." : "Guardar"}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-      </div>
-    </>
+        </div>
+      )}
+    </div>
   );
 }

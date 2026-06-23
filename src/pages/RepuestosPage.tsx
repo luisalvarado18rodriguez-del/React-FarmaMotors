@@ -1,458 +1,236 @@
-import { useState, useEffect } from "react";
-import type { Repuesto, RepuestoFormData } from "../type/Repuesto";
+import { useEffect, useState } from "react";
 import { RepuestoService } from "../service/RepuestoService";
+import { ProveedorService } from "../service/ProveedorService";
+import type { Repuesto, RepuestoFormData } from "../type/Repuesto";
+import type { Proveedor } from "../type/Proveedor";
 
-const BLANK: RepuestoFormData = {
-  nom_Repuesto: "",
-  marcaRep: "",
-  descripRep: "",
-  precioUnitario: 0,
-  stock: 0,
+const EMPTY: RepuestoFormData = {
+  cod_Proveedor: 0, nom_Repuesto: "", marcaRep: "", descripRep: "", precioUnitario: 0, stock: 0,
 };
 
-const styles = `
-  .rep-page {
-    padding: 36px 40px;
-    max-width: 1100px;
-    margin: 0 auto;
-    font-family: 'Inter', 'Segoe UI', sans-serif;
-  }
-
-  .rep-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    margin-bottom: 28px;
-  }
-
-  .rep-title {
-    font-size: 22px;
-    font-weight: 700;
-    color: #0f172a;
-    margin: 0 0 4px 0;
-  }
-
-  .rep-subtitle {
-    font-size: 13px;
-    color: #94a3b8;
-    margin: 0;
-  }
-
-  .btn-primary {
-    background: #0f2744;
-    color: #fff;
-    border: none;
-    padding: 10px 18px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s;
-    white-space: nowrap;
-  }
-  .btn-primary:hover { background: #1e3a5f; }
-
-  .rep-card {
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    overflow: hidden;
-  }
-
-  .rep-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  .rep-table thead tr {
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
-  }
-
-  .rep-table th {
-    padding: 12px 16px;
-    text-align: left;
-    font-size: 11px;
-    font-weight: 600;
-    color: #94a3b8;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .rep-table th.col-actions { text-align: right; }
-
-  .rep-table tbody tr {
-    border-bottom: 1px solid #f1f5f9;
-    transition: background 0.1s;
-  }
-  .rep-table tbody tr:last-child { border-bottom: none; }
-  .rep-table tbody tr:hover { background: #fafcff; }
-
-  .rep-table td {
-    padding: 14px 16px;
-    font-size: 14px;
-    color: #334155;
-    vertical-align: middle;
-  }
-
-  .td-name {
-    font-weight: 600;
-    color: #0f172a;
-  }
-
-  .td-price { color: #0f2744; font-weight: 500; }
-
-  .stock-badge {
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 999px;
-    font-size: 13px;
-    font-weight: 600;
-  }
-  .stock-ok   { background: #dcfce7; color: #166534; }
-  .stock-low  { background: #fee2e2; color: #991b1b; }
-
-  .td-actions {
-    text-align: right;
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-  }
-
-  .btn-edit {
-    background: #fff;
-    border: 1px solid #cbd5e1;
-    color: #334155;
-    padding: 6px 14px;
-    border-radius: 5px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
-  }
-  .btn-edit:hover { border-color: #0f2744; color: #0f2744; background: #f0f4fa; }
-
-  .btn-delete {
-    background: #fff0f0;
-    border: 1px solid #fecaca;
-    color: #dc2626;
-    padding: 6px 14px;
-    border-radius: 5px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .btn-delete:hover { background: #fee2e2; }
-
-  .empty-row td {
-    text-align: center;
-    color: #94a3b8;
-    padding: 48px;
-    font-size: 14px;
-  }
-
-  .error-bar {
-    background: #fee2e2;
-    border: 1px solid #fecaca;
-    color: #b91c1c;
-    padding: 10px 16px;
-    border-radius: 6px;
-    font-size: 13px;
-    margin-bottom: 16px;
-  }
-
-  /* Modal */
-  .overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 50;
-    backdrop-filter: blur(2px);
-  }
-
-  .modal {
-    background: #fff;
-    border-radius: 12px;
-    padding: 28px;
-    width: 420px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-  }
-
-  .modal-title {
-    font-size: 17px;
-    font-weight: 700;
-    color: #0f172a;
-    margin: 0 0 20px 0;
-  }
-
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    margin-bottom: 14px;
-  }
-
-  .field label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .field input,
-  .field textarea {
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    padding: 9px 12px;
-    font-size: 14px;
-    color: #0f172a;
-    outline: none;
-    transition: border-color 0.15s;
-    -moz-appearance: textfield;
-    font-family: inherit;
-  }
-  .field input::-webkit-outer-spin-button,
-  .field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  .field input:focus,
-  .field textarea:focus { border-color: #0f2744; }
-
-  .modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 20px;
-  }
-
-  .btn-cancel {
-    background: #f1f5f9;
-    border: none;
-    color: #475569;
-    padding: 9px 18px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .btn-cancel:hover { background: #e2e8f0; }
-`;
+function stockClass(s: number) {
+  return s > 10 ? "badge-stk-ok" : s > 0 ? "badge-stk-warn" : "badge-stk-out";
+}
 
 export default function RepuestosPage() {
-  const [list, setList]       = useState<Repuesto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState("");
-  const [modal, setModal]     = useState(false);
-  const [editing, setEditing] = useState<number | null>(null);
-  const [form, setForm]       = useState<RepuestoFormData>(BLANK);
-  const [saving, setSaving]   = useState(false);
+  const [lista, setLista]         = useState<Repuesto[]>([]);
+  const [proveedores, setProvs]   = useState<Proveedor[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState("");
+  const [search, setSearch]       = useState("");
+  const [modal, setModal]         = useState(false);
+  const [editId, setEditId]       = useState<number | null>(null);
+  const [form, setForm]           = useState<RepuestoFormData>(EMPTY);
+  const [saving, setSaving]       = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    setError("");
+  const cargar = async () => {
     try {
-      const data = await RepuestoService.getAll();
-      setList(data);
+      setLoading(true);
+      const [reps, provs] = await Promise.all([RepuestoService.getAll(), ProveedorService.getAll()]);
+      setLista(reps); setProvs(provs); setError("");
     } catch {
-      setError("No se pudo conectar con el servidor.");
+      setError("Error al cargar repuestos.");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { cargar(); }, []);
 
-  const openNew = () => { setEditing(null); setForm(BLANK); setModal(true); };
+  const filtrados = lista.filter(r =>
+    r.nom_Repuesto.toLowerCase().includes(search.toLowerCase()) ||
+    r.marcaRep.toLowerCase().includes(search.toLowerCase())
+  );
 
-  const openEdit = (r: Repuesto) => {
-    setEditing(r.cod_Repuesto);
-    setForm({
-      nom_Repuesto:   r.nom_Repuesto,
-      marcaRep:       r.marcaRep,
-      descripRep:     r.descripRep,
-      precioUnitario: r.precioUnitario,
-      stock:          r.stock,
-    });
-    setModal(true);
+  const sinStock = lista.filter(r => r.stock === 0).length;
+  const stockBajo = lista.filter(r => r.stock > 0 && r.stock <= 10).length;
+
+  const nomProv = (id: number) => proveedores.find(p => p.cod_Proveedor === id)?.nomRazSocial ?? `#${id}`;
+
+  const abrirCrear = () => {
+    setForm({ ...EMPTY, cod_Proveedor: proveedores[0]?.cod_Proveedor ?? 0 });
+    setEditId(null); setModal(true);
   };
 
-  const closeModal = () => { setModal(false); setError(""); };
+  const abrirEditar = (r: Repuesto) => {
+    setForm({ cod_Proveedor: r.cod_Proveedor, nom_Repuesto: r.nom_Repuesto, marcaRep: r.marcaRep, descripRep: r.descripRep, precioUnitario: r.precioUnitario, stock: r.stock });
+    setEditId(r.cod_Repuesto); setModal(true);
+  };
 
-  const handleSave = async () => {
-    if (!form.nom_Repuesto.trim()) return setError("El nombre es obligatorio.");
-    setSaving(true);
+  const guardar = async (e: { preventDefault(): void }) => {
+    e.preventDefault(); setSaving(true);
     try {
-      if (editing !== null) {
-        await RepuestoService.update(editing, form);
-      } else {
-        await RepuestoService.create(form);
-      }
-      closeModal();
-      load();
-    } catch {
-      setError("Error al guardar. Intenta de nuevo.");
-    } finally {
-      setSaving(false);
-    }
+      editId !== null ? await RepuestoService.update(editId, form) : await RepuestoService.create(form);
+      setModal(false); cargar();
+    } catch { setError("Error al guardar repuesto."); }
+    finally { setSaving(false); }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("¿Seguro que deseas eliminar este repuesto?")) return;
-    try {
-      await RepuestoService.delete(id);
-      load();
-    } catch {
-      setError("No se pudo eliminar el repuesto.");
-    }
+  const eliminar = async (id: number) => {
+    if (!confirm("¿Eliminar este repuesto?")) return;
+    try { await RepuestoService.delete(id); cargar(); }
+    catch { setError("Error al eliminar repuesto."); }
   };
-
-  // Para campos de texto
-  const handleText = (key: keyof RepuestoFormData) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setForm(prev => ({ ...prev, [key]: e.target.value }));
-
-  // Para campos numéricos: acepta el string directamente, sin convertir al vuelo
-  const handleNum = (key: keyof RepuestoFormData) =>
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const raw = e.target.value;
-      setForm(prev => ({ ...prev, [key]: raw === "" ? 0 : Number(raw) }));
-    };
 
   return (
-    <>
-      <style>{styles}</style>
-
-      <div className="rep-page">
-        {/* Header */}
-        <div className="rep-header">
-          <div>
-            <h2 className="rep-title">Gestión de Repuestos</h2>
-            <p className="rep-subtitle">Administra el inventario de repuestos del sistema.</p>
+    <div>
+      {/* Banner */}
+      <div className="mod-banner">
+        <div>
+          <p className="mod-eyebrow">Módulo</p>
+          <h2 className="mod-title">Repuestos</h2>
+          <p className="mod-sub">Control de inventario y stock</p>
+        </div>
+        <div className="mod-right">
+          {sinStock > 0 && (
+            <div className="mod-stat">
+              <span className="mod-stat-val" style={{ color: "#F87171" }}>{sinStock}</span>
+              <span className="mod-stat-lbl">Sin stock</span>
+            </div>
+          )}
+          {stockBajo > 0 && (
+            <div className="mod-stat">
+              <span className="mod-stat-val" style={{ color: "#FCD34D" }}>{stockBajo}</span>
+              <span className="mod-stat-lbl">Stock bajo</span>
+            </div>
+          )}
+          <div className="mod-stat">
+            <span className="mod-stat-val">{lista.length}</span>
+            <span className="mod-stat-lbl">Total</span>
           </div>
-          <button className="btn-primary" onClick={openNew}>+ Nuevo Repuesto</button>
+          <button className="btn btn-primary btn-lg" onClick={abrirCrear}>+ Nuevo repuesto</button>
+        </div>
+      </div>
+
+      <div className="page-content">
+        {error && <div className="alert alert-error">{error}</div>}
+
+        <div className="toolbar">
+          <div className="search-box">
+            <input
+              placeholder="Buscar por nombre o marca..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <span className="count-tag">
+            Mostrando <strong>{filtrados.length}</strong> de {lista.length}
+          </span>
         </div>
 
-        {/* Error bar (fuera del modal) */}
-        {error && !modal && <div className="error-bar">{error}</div>}
-
-        {/* Tabla */}
-        <div className="rep-card">
-          <table className="rep-table">
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Marca</th>
-                <th>Precio unit.</th>
-                <th>Stock</th>
-                <th className="col-actions">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr className="empty-row">
-                  <td colSpan={5}>Cargando repuestos…</td>
+        {loading ? (
+          <div className="loading-box">
+            <div className="loading-ring" />
+            <p className="loading-text">Cargando repuestos...</p>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Nombre</th>
+                  <th>Marca</th>
+                  <th>Descripción</th>
+                  <th>Proveedor</th>
+                  <th>Precio unit.</th>
+                  <th>Stock</th>
+                  <th>Acciones</th>
                 </tr>
-              ) : list.length === 0 ? (
-                <tr className="empty-row">
-                  <td colSpan={5}>No hay repuestos registrados aún.</td>
-                </tr>
-              ) : list.map(r => (
-                <tr key={r.cod_Repuesto}>
-                  <td className="td-name">{r.nom_Repuesto}</td>
-                  <td>{r.marcaRep}</td>
-                  <td className="td-price">S/ {Number(r.precioUnitario).toFixed(2)}</td>
-                  <td>
-                    <span className={`stock-badge ${r.stock <= 3 ? "stock-low" : "stock-ok"}`}>
-                      {r.stock}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="td-actions">
-                      <button className="btn-edit" onClick={() => openEdit(r)}>Editar</button>
-                      <button className="btn-delete" onClick={() => handleDelete(r.cod_Repuesto)}>Eliminar</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filtrados.map(r => (
+                  <tr key={r.cod_Repuesto}>
+                    <td className="td-num">{r.cod_Repuesto}</td>
+                    <td className="td-bold">{r.nom_Repuesto}</td>
+                    <td className="td-muted">{r.marcaRep}</td>
+                    <td className="td-muted" style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.descripRep}</td>
+                    <td className="td-muted">{nomProv(r.cod_Proveedor)}</td>
+                    <td className="td-bold">S/ {r.precioUnitario.toFixed(2)}</td>
+                    <td>
+                      <span className={`badge ${stockClass(r.stock)}`}>{r.stock} uds.</span>
+                    </td>
+                    <td>
+                      <div className="td-acts">
+                        <button className="btn btn-edit btn-sm" onClick={() => abrirEditar(r)}>Editar</button>
+                        <button className="btn btn-delete btn-sm" onClick={() => eliminar(r.cod_Repuesto)}>Eliminar</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filtrados.length === 0 && (
+                  <tr className="empty-row"><td colSpan={8}>Sin repuestos registrados</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Modal */}
       {modal && (
-        <div className="overlay" onClick={(e) => e.target === e.currentTarget && closeModal()}>
-          <div className="modal">
-            <h3 className="modal-title">{editing !== null ? "Editar repuesto" : "Nuevo repuesto"}</h3>
-
-            {error && <div className="error-bar" style={{ marginBottom: 14 }}>{error}</div>}
-
-            <div className="field">
-              <label>Nombre</label>
-              <input
-                value={form.nom_Repuesto}
-                onChange={handleText("nom_Repuesto")}
-                placeholder="Ej. Aceite de motor"
-              />
-            </div>
-
-            <div className="field">
-              <label>Marca</label>
-              <input
-                value={form.marcaRep}
-                onChange={handleText("marcaRep")}
-                placeholder="Ej. Honda"
-              />
-            </div>
-
-            <div className="field">
-              <label>Descripción</label>
-              <textarea
-                value={form.descripRep}
-                onChange={handleText("descripRep")}
-                placeholder="Descripción opcional"
-                rows={2}
-              />
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              <div className="field">
-                <label>Precio unitario (S/)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.precioUnitario}
-                  onChange={handleNum("precioUnitario")}
-                  placeholder="0.00"
-                />
+        <div className="modal-overlay">
+          <div className="modal modal-md">
+            <div className="modal-head">
+              <div>
+                <p className="modal-head-sub">Repuestos</p>
+                <h3 className="modal-head-title">{editId !== null ? "Editar repuesto" : "Nuevo repuesto"}</h3>
               </div>
-              <div className="field">
-                <label>Stock</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={form.stock}
-                  onChange={handleNum("stock")}
-                  placeholder="0"
-                />
+              <button className="modal-x" onClick={() => setModal(false)}>×</button>
+            </div>
+            <form onSubmit={guardar}>
+              <div className="modal-body">
+                <div className="fgrid">
+                  <div className="fgfull">
+                    <label className="flabel">Proveedor</label>
+                    <select className="finput" value={form.cod_Proveedor}
+                      onChange={e => setForm({ ...form, cod_Proveedor: Number(e.target.value) })} required>
+                      <option value={0} disabled>Seleccionar proveedor</option>
+                      {proveedores.map(p => (
+                        <option key={p.cod_Proveedor} value={p.cod_Proveedor}>{p.nomRazSocial}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="fg">
+                    <label className="flabel">Nombre</label>
+                    <input className="finput" value={form.nom_Repuesto}
+                      onChange={e => setForm({ ...form, nom_Repuesto: e.target.value })} required />
+                  </div>
+                  <div className="fg">
+                    <label className="flabel">Marca</label>
+                    <input className="finput" value={form.marcaRep}
+                      onChange={e => setForm({ ...form, marcaRep: e.target.value })} required />
+                  </div>
+                  <div className="fgfull">
+                    <label className="flabel">Descripción</label>
+                    <input className="finput" value={form.descripRep}
+                      onChange={e => setForm({ ...form, descripRep: e.target.value })} required />
+                  </div>
+                  <div className="fg">
+                    <label className="flabel">Precio unitario (S/)</label>
+                    <input className="finput" inputMode="decimal" value={form.precioUnitario}
+                      onChange={e => {
+                        const v = e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1");
+                        setForm({ ...form, precioUnitario: v === "" || v === "." ? 0 : parseFloat(v) || 0 });
+                      }} required />
+                  </div>
+                  <div className="fg">
+                    <label className="flabel">Stock</label>
+                    <input className="finput" inputMode="numeric" value={form.stock}
+                      onChange={e => setForm({ ...form, stock: Number(e.target.value.replace(/\D/g, "")) || 0 })} required />
+                  </div>
+                </div>
               </div>
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={closeModal}>Cancelar</button>
-              <button className="btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? "Guardando…" : "Guardar"}
-              </button>
-            </div>
+              <div className="modal-foot">
+                <button type="button" className="btn btn-ghost btn-md" onClick={() => setModal(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary btn-md" disabled={saving}>
+                  {saving ? "Guardando..." : "Guardar"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

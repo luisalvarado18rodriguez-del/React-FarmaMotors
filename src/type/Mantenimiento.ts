@@ -1,3 +1,5 @@
+export type EstadoMant = "Pendiente" | "En Proceso" | "Completado" | "Entregado" | "Finalizado";
+
 export interface Mantenimiento {
   cod_Mantenimiento: number;
   cod_Cliente: number;
@@ -5,11 +7,10 @@ export interface Mantenimiento {
   motoModelo: string;
   descripcionAveria: string;
   costoManoObra: number;
-  estado: "Pendiente" | "En Proceso" | "Completado";
+  estado: EstadoMant;
   fechaIngreso: string;
 }
 
-// fechaIngreso es opcional en el form: Spring Boot la setea automáticamente con LocalDate.now()
 export type MantenimientoFormData = Omit<Mantenimiento, "cod_Mantenimiento" | "fechaIngreso"> & {
   fechaIngreso?: string;
 };

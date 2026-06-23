@@ -1,297 +1,205 @@
-import { useEffect, useState } from 'react';
-import { ProveedorService } from '../service/ProveedorService';
-import type { Proveedor, ProveedorFormData } from '../type/Proveedor';
+import { useEffect, useState } from "react";
+import { ProveedorService } from "../service/ProveedorService";
+import type { Proveedor, ProveedorFormData } from "../type/Proveedor";
 
-// Paleta de colores estilo Dashboard Moderno
-const Theme = {
-  bgContainer: '#f8fafc', // Fondo sutil slate para romper el blanco plano
-  textPrimary: '#1e293b',
-  textSecondary: '#64748b',
-  primary: '#2563eb', // Azul moderno
-  primaryHover: '#1d4ed8',
-  danger: '#ef4444',
-  dangerHover: '#dc2626',
-  success: '#10b981',
-  border: '#e2e8f0',
-  cardBg: '#ffffff'
+const EMPTY: ProveedorFormData = {
+  ruc: "", nomRazSocial: "", telefono: "", direccion: "", correo: "",
 };
 
-export const ProveedorPage = () => {
-  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
+export function ProveedorPage() {
+  const [lista, setLista]     = useState<Proveedor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState("");
+  const [search, setSearch]   = useState("");
+  const [modal, setModal]     = useState(false);
+  const [editId, setEditId]   = useState<number | null>(null);
+  const [form, setForm]       = useState<ProveedorFormData>(EMPTY);
+  const [saving, setSaving]   = useState(false);
 
-  const [showForm, setShowForm] = useState<boolean>(false);
-  const [editId, setEditId] = useState<number | null>(null);
-  const [formData, setFormData] = useState<ProveedorFormData>({
-    ruc: '',
-    nomRazSocial: '',
-    telefono: '',
-    direccion: '',
-    correo: ''
-  });
-
-  useEffect(() => {
-    cargarLista();
-  }, []);
-
-  const cargarLista = async () => {
-    setLoading(true);
+  const cargar = async () => {
     try {
-      const data = await ProveedorService.getAll();
-      setProveedores(data);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || "Error al cargar proveedores");
+      setLoading(true);
+      setLista(await ProveedorService.getAll());
+      setError("");
+    } catch {
+      setError("Error al cargar proveedores.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  useEffect(() => { cargar(); }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (editId !== null) {
-        await ProveedorService.update(editId, formData);
-      } else { // 🌟 BUG CORREGIDO: Faltaba el 'else' explícito aquí
-        await ProveedorService.create(formData);
-      }
-      limpiarFormulario();
-      cargarLista();
-    } catch (err: any) {
-      setError(err.message || "Error al guardar el proveedor");
-    }
-  };
+  const filtrados = lista.filter(p =>
+    p.nomRazSocial.toLowerCase().includes(search.toLowerCase()) ||
+    p.ruc.includes(search) ||
+    p.correo.toLowerCase().includes(search.toLowerCase())
+  );
 
-  const handleEdit = (p: Proveedor) => {
+  const abrirCrear = () => { setForm(EMPTY); setEditId(null); setModal(true); };
+
+  const abrirEditar = (p: Proveedor) => {
+    setForm({ ruc: p.ruc, nomRazSocial: p.nomRazSocial, telefono: p.telefono, direccion: p.direccion, correo: p.correo });
     setEditId(p.cod_Proveedor);
-    setFormData({
-      ruc: p.ruc,
-      nomRazSocial: p.nomRazSocial,
-      telefono: p.telefono,
-      direccion: p.direccion,
-      correo: p.correo
-    });
-    setShowForm(true);
+    setModal(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("¿Estás seguro de que deseas eliminar este proveedor?")) {
-      try {
-        await ProveedorService.delete(id);
-        cargarLista();
-      } catch (err: any) {
-        setError(err.message || "Error al eliminar el proveedor");
-      }
-    }
+  const guardar = async (e: { preventDefault(): void }) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      editId !== null ? await ProveedorService.update(editId, form) : await ProveedorService.create(form);
+      setModal(false); cargar();
+    } catch { setError("Error al guardar proveedor."); }
+    finally { setSaving(false); }
   };
 
-  const limpiarFormulario = () => {
-    setFormData({ ruc: '', nomRazSocial: '', telefono: '', direccion: '', correo: '' });
-    setEditId(null);
-    setShowForm(false);
+  const eliminar = async (id: number) => {
+    if (!confirm("¿Eliminar este proveedor?")) return;
+    try { await ProveedorService.delete(id); cargar(); }
+    catch { setError("Error al eliminar proveedor."); }
   };
 
   return (
-    <div style={{ 
-      padding: '30px', 
-      backgroundColor: Theme.bgContainer, 
-      minHeight: '100vh',
-      width: '100%',
-      boxSizing: 'border-box',
-      fontFamily: 'Inter, system-ui, sans-serif'
-    }}>
-      {/* Header de la sección */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: '24px',
-        borderBottom: `1px solid ${Theme.border}`,
-        paddingBottom: '16px'
-      }}>
+    <div>
+      {/* Banner */}
+      <div className="mod-banner">
         <div>
-          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: Theme.textPrimary }}>
-            Gestión de Proveedores
-          </h1>
-          <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: Theme.textSecondary }}>
-            Administra la lista de proveedores del sistema de manera centralizada.
-          </p>
+          <p className="mod-eyebrow">Módulo</p>
+          <h2 className="mod-title">Proveedores</h2>
+          <p className="mod-sub">Gestión de proveedores de repuestos</p>
         </div>
-        <button 
-          onClick={() => { showForm ? limpiarFormulario() : setShowForm(true); }}
-          style={{ 
-            padding: '10px 20px', 
-            cursor: 'pointer',
-            backgroundColor: showForm ? '#64748b' : Theme.primary,
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            fontWeight: 600,
-            fontSize: '14px',
-            transition: 'background-color 0.2s',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-          }}
-        >
-          {showForm ? 'Cancelar' : '➕ Nuevo Proveedor'}
-        </button>
+        <div className="mod-right">
+          <div className="mod-stat">
+            <span className="mod-stat-val">{lista.length}</span>
+            <span className="mod-stat-lbl">Total</span>
+          </div>
+          <button className="btn btn-primary btn-lg" onClick={abrirCrear}>+ Nuevo proveedor</button>
+        </div>
       </div>
-      
-      {error && (
-        <div style={{ 
-          backgroundColor: '#fef2f2', 
-          border: `1px solid ${Theme.danger}`, 
-          color: Theme.danger, 
-          padding: '12px 16px', 
-          borderRadius: '6px', 
-          marginBottom: '20px',
-          fontWeight: 500,
-          fontSize: '14px'
-        }}>
-          ⚠️ {error}
+
+      <div className="page-content">
+        {error && <div className="alert alert-error">{error}</div>}
+
+        <div className="toolbar">
+          <div className="search-box">
+            <input
+              placeholder="Buscar por nombre, RUC o correo..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <span className="count-tag">
+            Mostrando <strong>{filtrados.length}</strong> de {lista.length}
+          </span>
         </div>
-      )}
 
-      {/* Formulario Elegante */}
-      {showForm && (
-        <div style={{
-          backgroundColor: Theme.cardBg,
-          padding: '24px',
-          borderRadius: '8px',
-          border: `1px solid ${Theme.border}`,
-          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)',
-          marginBottom: '30px',
-          maxWidth: '600px'
-        }}>
-          <h3 style={{ margin: '0 0 20px 0', color: Theme.textPrimary, fontSize: '18px', fontWeight: 600 }}>
-            {editId !== null ? '📝 Editar Proveedor' : '🚀 Registrar Nuevo Proveedor'}
-          </h3>
-          
-          <form onSubmit={handleSubmit}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: Theme.textSecondary }}>RUC</label>
-                <input type="text" name="ruc" value={formData.ruc} onChange={handleInputChange} required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: `1px solid ${Theme.border}`, boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: Theme.textSecondary }}>Razón Social</label>
-                <input type="text" name="nomRazSocial" value={formData.nomRazSocial} onChange={handleInputChange} required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: `1px solid ${Theme.border}`, boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: Theme.textSecondary }}>Teléfono</label>
-                <input type="text" name="telefono" value={formData.telefono} onChange={handleInputChange} required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: `1px solid ${Theme.border}`, boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: Theme.textSecondary }}>Correo Electrónico</label>
-                <input type="email" name="correo" value={formData.correo} onChange={handleInputChange} required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: `1px solid ${Theme.border}`, boxSizing: 'border-box' }} />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '24px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: Theme.textSecondary }}>Dirección Residencial</label>
-              <input type="text" name="direccion" value={formData.direccion} onChange={handleInputChange} required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: `1px solid ${Theme.border}`, boxSizing: 'border-box' }} />
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button type="button" onClick={limpiarFormulario} style={{ padding: '10px 16px', borderRadius: '6px', border: `1px solid ${Theme.border}`, backgroundColor: 'white', color: Theme.textSecondary, cursor: 'pointer', fontWeight: 500 }}>
-                Cancelar
-              </button>
-              <button type="submit" style={{ padding: '10px 20px', borderRadius: '6px', border: 'none', backgroundColor: Theme.success, color: 'white', cursor: 'pointer', fontWeight: 600 }}>
-                {editId !== null ? 'Actualizar Cambios' : 'Guardar Proveedor'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Tabla Estilizada */}
-      <div style={{ 
-        backgroundColor: Theme.cardBg, 
-        borderRadius: '8px', 
-        border: `1px solid ${Theme.border}`,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-        overflow: 'hidden'
-      }}>
         {loading ? (
-          <p style={{ padding: '24px', textAlign: 'center', color: Theme.textSecondary }}>Cargando proveedores...</p>
+          <div className="loading-box">
+            <div className="loading-ring" />
+            <p className="loading-text">Cargando proveedores...</p>
+          </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f8fafc', borderBottom: `2px solid ${Theme.border}` }}>
-                <th style={{ padding: '14px 16px', fontWeight: 600, color: Theme.textPrimary, width: '60px', textAlign: 'center' }}>ID</th>
-                <th style={{ padding: '14px 16px', fontWeight: 600, color: Theme.textPrimary }}>Razón Social</th>
-                <th style={{ padding: '14px 16px', fontWeight: 600, color: Theme.textPrimary, textAlign: 'center' }}>RUC</th>
-                <th style={{ padding: '14px 16px', fontWeight: 600, color: Theme.textPrimary, textAlign: 'center' }}>Teléfono</th>
-                <th style={{ padding: '14px 16px', fontWeight: 600, color: Theme.textPrimary }}>Dirección</th>
-                <th style={{ padding: '14px 16px', fontWeight: 600, color: Theme.textPrimary }}>Correo</th>
-                <th style={{ padding: '14px 16px', fontWeight: 600, color: Theme.textPrimary, textAlign: 'center', width: '180px' }}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {proveedores.length === 0 ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: Theme.textSecondary, backgroundColor: '#ffffff' }}>
-                    No hay proveedores registrados en este momento.
-                  </td>
+                  <th>#</th>
+                  <th>RUC</th>
+                  <th>Nombre / Razón Social</th>
+                  <th>Teléfono</th>
+                  <th>Correo electrónico</th>
+                  <th>Dirección</th>
+                  <th>Acciones</th>
                 </tr>
-              ) : (
-                proveedores.map((p, index) => (
-                  <tr key={p.cod_Proveedor} style={{ 
-                    borderBottom: `1px solid ${Theme.border}`,
-                    backgroundColor: index % 2 === 0 ? '#ffffff' : '#fcfdfe',
-                    transition: 'background-color 0.15s'
-                  }}>
-                    <td style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 500, color: Theme.textSecondary }}>{p.cod_Proveedor}</td>
-                    <td style={{ padding: '14px 16px', fontWeight: 600, color: Theme.textPrimary }}>{p.nomRazSocial}</td>
-                    <td style={{ padding: '14px 16px', textAlign: 'center', color: Theme.textPrimary }}>{p.ruc}</td>
-                    <td style={{ padding: '14px 16px', textAlign: 'center', color: Theme.textSecondary }}>{p.telefono}</td>
-                    <td style={{ padding: '14px 16px', color: Theme.textSecondary }}>{p.direccion}</td>
-                    <td style={{ padding: '14px 16px', color: Theme.textSecondary }}>{p.correo}</td>
-                    <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                      <button 
-                        onClick={() => handleEdit(p)} 
-                        style={{ 
-                          marginRight: '8px', 
-                          cursor: 'pointer',
-                          padding: '6px 12px',
-                          borderRadius: '4px',
-                          border: `1px solid ${Theme.border}`,
-                          backgroundColor: '#f1f5f9',
-                          color: Theme.textPrimary,
-                          fontWeight: 500,
-                          fontSize: '12px'
-                        }}
-                      >
-                        Editar
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(p.cod_Proveedor)} 
-                        style={{ 
-                          cursor: 'pointer', 
-                          padding: '6px 12px',
-                          borderRadius: '4px',
-                          border: 'none',
-                          backgroundColor: '#fef2f2',
-                          color: Theme.danger,
-                          fontWeight: 500,
-                          fontSize: '12px'
-                        }}
-                      >
-                        Eliminar
-                      </button>
+              </thead>
+              <tbody>
+                {filtrados.map(p => (
+                  <tr key={p.cod_Proveedor}>
+                    <td className="td-num">{p.cod_Proveedor}</td>
+                    <td className="td-mono">{p.ruc}</td>
+                    <td className="td-bold">{p.nomRazSocial}</td>
+                    <td className="td-muted">{p.telefono}</td>
+                    <td className="td-muted">{p.correo}</td>
+                    <td className="td-muted">{p.direccion}</td>
+                    <td>
+                      <div className="td-acts">
+                        <button className="btn btn-edit btn-sm" onClick={() => abrirEditar(p)}>Editar</button>
+                        <button className="btn btn-delete btn-sm" onClick={() => eliminar(p.cod_Proveedor)}>Eliminar</button>
+                      </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ))}
+                {filtrados.length === 0 && (
+                  <tr className="empty-row"><td colSpan={7}>Sin proveedores registrados</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
+
+      {/* Modal */}
+      {modal && (
+        <div className="modal-overlay">
+          <div className="modal modal-md">
+            <div className="modal-head">
+              <div>
+                <p className="modal-head-sub">Proveedores</p>
+                <h3 className="modal-head-title">{editId !== null ? "Editar proveedor" : "Nuevo proveedor"}</h3>
+              </div>
+              <button className="modal-x" onClick={() => setModal(false)}>×</button>
+            </div>
+            <form onSubmit={guardar}>
+              <div className="modal-body">
+                <div className="fgrid">
+                  <div className="fg">
+                    <label className="flabel">RUC</label>
+                    <input className="finput" inputMode="numeric" value={form.ruc}
+                      maxLength={11}
+                      onChange={e => {
+                        const v = e.target.value.replace(/\D/g, "").slice(0, 11);
+                        if (v.length >= 2 && !v.startsWith("10") && !v.startsWith("20")) return;
+                        setForm({ ...form, ruc: v });
+                      }} required />
+                  </div>
+                  <div className="fg">
+                    <label className="flabel">Nombre / Razón Social</label>
+                    <input className="finput" value={form.nomRazSocial}
+                      onChange={e => setForm({ ...form, nomRazSocial: e.target.value })} required />
+                  </div>
+                  <div className="fg">
+                    <label className="flabel">Teléfono</label>
+                    <input className="finput" inputMode="numeric" value={form.telefono}
+                      maxLength={9}
+                      onChange={e => {
+                        const v = e.target.value.replace(/\D/g, "").slice(0, 9);
+                        if (v !== "" && !v.startsWith("9")) return;
+                        setForm({ ...form, telefono: v });
+                      }} required />
+                  </div>
+                  <div className="fg">
+                    <label className="flabel">Correo electrónico</label>
+                    <input className="finput" type="email" value={form.correo}
+                      onChange={e => setForm({ ...form, correo: e.target.value })} required />
+                  </div>
+                  <div className="fgfull">
+                    <label className="flabel">Dirección</label>
+                    <input className="finput" value={form.direccion}
+                      onChange={e => setForm({ ...form, direccion: e.target.value })} required />
+                  </div>
+                </div>
+              </div>
+              <div className="modal-foot">
+                <button type="button" className="btn btn-ghost btn-md" onClick={() => setModal(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary btn-md" disabled={saving}>
+                  {saving ? "Guardando..." : "Guardar"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
+}
