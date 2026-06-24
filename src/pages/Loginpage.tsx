@@ -277,7 +277,7 @@ export default function LoginPage({ onLogin }: Props) {
         .auth-field input {
           width: 100%;
           padding: 11px 14px;
-          border: 1.5px solid #E2E8F0;
+          border: 1px solid #E2E8F0;
           border-radius: 9px;
           font-size: 14px;
           color: #1A2332;

@@ -19,8 +19,34 @@ function tokenExpirado(token: string): boolean {
 
 function cerrarSesionPorExpiracion() {
   localStorage.removeItem("jwt_token");
-  alert("Tu sesión ha expirado. Por favor inicia sesión nuevamente.");
-  window.location.reload();
+  if (document.getElementById("__session-expired__")) return;
+
+  const overlay = document.createElement("div");
+  overlay.id = "__session-expired__";
+  Object.assign(overlay.style, {
+    position: "fixed", inset: "0", zIndex: "99999",
+    background: "rgba(5,12,28,0.72)",
+    backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    fontFamily: "'Inter', system-ui, sans-serif",
+  });
+
+  overlay.innerHTML = `
+    <div style="background:#fff;width:380px;max-width:92vw;padding:44px 36px 36px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,0.22),0 0 0 1px rgba(0,0,0,0.06);">
+      <div style="width:48px;height:48px;border:1px solid rgba(26,111,196,0.25);background:rgba(26,111,196,0.07);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+        <svg width="22" height="22" fill="none" stroke="#1A6FC4" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <h2 style="font-size:18px;font-weight:700;color:#0F172A;margin-bottom:10px;letter-spacing:-0.3px;">Tu sesión terminó</h2>
+      <p style="font-size:13.5px;color:#64748B;line-height:1.7;margin-bottom:32px;">Vuelve a iniciar sesión para<br/>usar la plataforma.</p>
+      <button onclick="window.location.reload()" style="background:#1A6FC4;color:#fff;border:none;padding:11px 32px;font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer;letter-spacing:0.2px;box-shadow:0 2px 10px rgba(26,111,196,0.32);">
+        Iniciar sesión
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
 }
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
