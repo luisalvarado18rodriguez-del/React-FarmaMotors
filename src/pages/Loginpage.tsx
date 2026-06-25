@@ -5,44 +5,21 @@ interface Props {
   onLogin: () => void;
 }
 
-type Tab = "login" | "register";
-
-
 export default function LoginPage({ onLogin }: Props) {
-  const [tab, setTab]           = useState<Tab>("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName]         = useState("");
   const [error, setError]       = useState("");
-  const [success, setSuccess]   = useState("");
   const [loading, setLoading]   = useState(false);
 
   const handleLogin = async (e: { preventDefault(): void }) => {
     e.preventDefault();
-    setError(""); setSuccess("");
+    setError("");
     setLoading(true);
     try {
       await AuthService.login({ username, password });
       onLogin();
-    } catch (err: any) {
-      setError(err.message || "Credenciales incorrectas.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRegister = async (e: { preventDefault(): void }) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      await AuthService.register({ name, email: username, password });
-      setSuccess("Cuenta creada. Ahora inicia sesión.");
-      setTab("login");
-      setName("");
-      setPassword("");
-    } catch (err: any) {
-      setError(err.message || "Error al registrar.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Credenciales incorrectas.");
     } finally {
       setLoading(false);
     }
@@ -60,7 +37,6 @@ export default function LoginPage({ onLogin }: Props) {
           font-family: 'Inter', system-ui, sans-serif;
         }
 
-        /* ── Panel izquierdo ── */
         .auth-left {
           background: #071829;
           display: flex;
@@ -111,13 +87,6 @@ export default function LoginPage({ onLogin }: Props) {
           line-height: 1.1;
         }
 
-        .auth-brand p {
-          font-size: 13.5px;
-          color: #475569;
-          line-height: 1.6;
-          max-width: 300px;
-        }
-
         .auth-left-footer {
           position: relative;
           z-index: 1;
@@ -127,7 +96,6 @@ export default function LoginPage({ onLogin }: Props) {
           letter-spacing: 0.3px;
         }
 
-        /* ── Panel derecho ── */
         .auth-right {
           background: #F1F5F9;
           display: flex;
@@ -156,13 +124,9 @@ export default function LoginPage({ onLogin }: Props) {
           border-bottom: 1px solid #F1F5F9;
         }
 
-        .auth-card-logo span {
-          color: #1A6FC4;
-        }
+        .auth-card-logo span { color: #1A6FC4; }
 
-        .auth-card-header {
-          margin-bottom: 28px;
-        }
+        .auth-card-header { margin-bottom: 28px; }
 
         .auth-card-header h2 {
           font-size: 20px;
@@ -177,36 +141,6 @@ export default function LoginPage({ onLogin }: Props) {
           color: #64748B;
         }
 
-        /* Tabs */
-        .auth-tabs {
-          display: flex;
-          background: #F1F5F9;
-          border-radius: 8px;
-          padding: 3px;
-          margin-bottom: 26px;
-        }
-
-        .auth-tab {
-          flex: 1;
-          background: none;
-          border: none;
-          padding: 8px 12px;
-          font-size: 13px;
-          font-weight: 600;
-          color: #64748B;
-          cursor: pointer;
-          border-radius: 6px;
-          transition: all 0.15s;
-          font-family: inherit;
-        }
-
-        .auth-tab.active {
-          background: #fff;
-          color: #0F172A;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-        }
-
-        /* Fields */
         .auth-field { margin-bottom: 16px; }
 
         .auth-field label {
@@ -239,7 +173,6 @@ export default function LoginPage({ onLogin }: Props) {
           background: #fff;
         }
 
-        /* Alert */
         .auth-alert {
           padding: 10px 13px;
           border-radius: 7px;
@@ -248,10 +181,8 @@ export default function LoginPage({ onLogin }: Props) {
           font-weight: 500;
           border-left: 3px solid transparent;
         }
-        .auth-alert.error   { background: #FEF2F2; border-color: #DC2626; color: #7F1D1D; }
-        .auth-alert.success { background: #F0FDF4; border-color: #16A34A; color: #14532D; }
+        .auth-alert.error { background: #FEF2F2; border-color: #DC2626; color: #7F1D1D; }
 
-        /* Button */
         .auth-btn {
           width: 100%;
           padding: 11px;
@@ -286,19 +217,16 @@ export default function LoginPage({ onLogin }: Props) {
 
       <div className="auth-root">
 
-        {/* Panel izquierdo */}
         <div className="auth-left">
           <div className="auth-brand">
             <div className="auth-brand-eyebrow">Sistema de taller mecánico</div>
             <h1>Bienvenido a<br />MotoSalud</h1>
           </div>
-
           <div className="auth-left-footer">
             MotoSalud · FarmaMotors &copy; 2026
           </div>
         </div>
 
-        {/* Panel derecho */}
         <div className="auth-right">
           <div className="auth-card">
 
@@ -307,98 +235,39 @@ export default function LoginPage({ onLogin }: Props) {
             </div>
 
             <div className="auth-card-header">
-              <h2>{tab === "login" ? "Bienvenido a MotoSalud" : "Crear cuenta"}</h2>
-              <p>{tab === "login" ? "Ingresa tus credenciales para continuar." : "Completa el formulario para registrarte."}</p>
+              <h2>Iniciar sesión</h2>
+              <p>Ingresa tus credenciales para continuar.</p>
             </div>
 
-            <div className="auth-tabs">
-              <button
-                className={`auth-tab ${tab === "login" ? "active" : ""}`}
-                onClick={() => { setTab("login"); setError(""); setSuccess(""); }}
-              >
-                Iniciar sesión
+            {error && <div className="auth-alert error">{error}</div>}
+
+            <form onSubmit={handleLogin}>
+              <div className="auth-field">
+                <label>Correo electrónico</label>
+                <input
+                  type="email"
+                  placeholder="usuario@ejemplo.com"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
+              </div>
+              <div className="auth-field">
+                <label>Contraseña</label>
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                />
+              </div>
+              <button className="auth-btn" type="submit" disabled={loading}>
+                {loading ? "Verificando..." : "Ingresar"}
               </button>
-              <button
-                className={`auth-tab ${tab === "register" ? "active" : ""}`}
-                onClick={() => { setTab("register"); setError(""); setSuccess(""); }}
-              >
-                Registrarse
-              </button>
-            </div>
-
-            {error   && <div className="auth-alert error">{error}</div>}
-            {success && <div className="auth-alert success">{success}</div>}
-
-            {tab === "login" && (
-              <form onSubmit={handleLogin}>
-                <div className="auth-field">
-                  <label>Correo electrónico</label>
-                  <input
-                    type="email"
-                    placeholder="usuario@ejemplo.com"
-                    value={username}
-                    onChange={e => setUsername(e.target.value)}
-                    required
-                    autoComplete="email"
-                  />
-                </div>
-                <div className="auth-field">
-                  <label>Contraseña</label>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    required
-                    autoComplete="current-password"
-                  />
-                </div>
-                <button className="auth-btn" type="submit" disabled={loading}>
-                  {loading ? "Verificando..." : "Ingresar"}
-                </button>
-              </form>
-            )}
-
-            {tab === "register" && (
-              <form onSubmit={handleRegister}>
-                <div className="auth-field">
-                  <label>Nombre completo</label>
-                  <input
-                    type="text"
-                    placeholder="Ej. Juan Pérez"
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="auth-field">
-                  <label>Correo electrónico</label>
-                  <input
-                    type="email"
-                    placeholder="usuario@ejemplo.com"
-                    value={username}
-                    onChange={e => setUsername(e.target.value)}
-                    required
-                    autoComplete="email"
-                  />
-                </div>
-                <div className="auth-field">
-                  <label>Contraseña</label>
-                  <input
-                    type="password"
-                    placeholder="Mínimo 6 caracteres"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                    autoComplete="new-password"
-                  />
-                </div>
-                <button className="auth-btn" type="submit" disabled={loading}>
-                  {loading ? "Creando cuenta..." : "Crear cuenta"}
-                </button>
-              </form>
-            )}
+            </form>
 
             <div className="auth-footer">
               Acceso restringido &middot; Solo personal autorizado

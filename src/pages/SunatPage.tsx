@@ -9,14 +9,6 @@ function formatSerie(nro: string, corr: number) {
   return `${nro}-${String(corr).padStart(8, "0")}`;
 }
 
-function getUsuarioJWT(): string {
-  const token = localStorage.getItem("jwt_token");
-  if (!token) return "—";
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return (payload.name || payload.username || payload.sub || "—").toUpperCase();
-  } catch { return "—"; }
-}
 
 const CSS = `
   .sunat-page { min-height: 100vh; background: #EEF2F7; }
@@ -564,7 +556,7 @@ export const SunatPage = () => {
                 <p className="tk-info">FECHA EMISIÓN: {ticketComp.fechaEmision}</p>
               </div>
               <div className="tk-dash" />
-              <p className="tk-field"><span className="tk-key">ATENDIDO POR:</span> {getUsuarioJWT()}</p>
+              <p className="tk-field"><span className="tk-key">ATENDIDO POR:</span> {(ticketComp.atendidoPor || "—").toUpperCase()}</p>
               <div className="tk-dash" />
               <p className="tk-section">DATOS DEL CLIENTE</p>
               <p className="tk-field"><span className="tk-key">RAZÓN SOCIAL:</span> {ticketComp.clienteNombre.toUpperCase()}</p>

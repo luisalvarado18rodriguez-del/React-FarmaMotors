@@ -13,6 +13,7 @@ export interface Comprobante {
   correlativo: number;
   cod_Mantenimiento: number;
   descripcionAveria: string;
+  atendidoPor: string;
   clienteNombre: string;
   tipoDocumento: string;
   clienteDocumento: string;
@@ -32,5 +33,6 @@ export interface DetalleRequest {
 
 export interface ComprobanteRequest {
   cod_Mantenimiento: number;
+  atendidoPor: string;
   repuestos: DetalleRequest[];
 }

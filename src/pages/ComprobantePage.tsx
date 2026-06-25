@@ -124,7 +124,7 @@ export default function ComprobantePage() {
     }
     setSaving(true); setFormError("");
     try {
-      await ComprobanteService.create({ cod_Mantenimiento: codMant, repuestos: filasValidas });
+      await ComprobanteService.create({ cod_Mantenimiento: codMant, atendidoPor: getUsuarioJWT(), repuestos: filasValidas });
       if (mantSel) {
         await MantenimientoService.update(codMant, {
           cod_Cliente: mantSel.cod_Cliente,
@@ -457,7 +457,7 @@ export default function ComprobantePage() {
             <div className="tk-dash" />
 
             {/* Personal atendido */}
-            <p className="tk-field"><span className="tk-key">ATENDIDO POR:</span> {getUsuarioJWT()}</p>
+            <p className="tk-field"><span className="tk-key">ATENDIDO POR:</span> {(modalVer.atendidoPor || "—").toUpperCase()}</p>
 
             <div className="tk-dash" />
 

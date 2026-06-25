@@ -7,12 +7,13 @@ import ComprobantePage from "./pages/ComprobantePage";
 import { ProveedorPage } from "./pages/ProveedorPage";
 import ClientesPage from "./pages/ClientesPage";
 import { SunatPage } from "./pages/SunatPage";
+import UsuariosPage from "./pages/UsuariosPage";
 import { AuthService } from "./service/Authservice";
 import "./App.css";
 
-type Page = "mantenimientos" | "repuestos" | "factura" | "proveedor" | "clientes" | "sunat";
+type Page = "clientes" | "proveedor" | "repuestos" | "mantenimientos" | "factura" | "sunat" | "usuarios";
 
-const NAV: { id: Page; icon: string; label: string }[] = [
+const NAV_BASE: { id: Page; icon: string; label: string }[] = [
   { id: "clientes",       icon: "fi fi-sr-review",        label: "CLIENTES" },
   { id: "proveedor",      icon: "fi fi-rs-supplier-alt",  label: "PROVEEDORES" },
   { id: "repuestos",      icon: "fi fi-sr-tool-box",      label: "REPUESTOS" },
@@ -21,12 +22,12 @@ const NAV: { id: Page; icon: string; label: string }[] = [
   { id: "sunat",          icon: "fi fi-bs-chart-line-up", label: "SUNAT" },
 ];
 
+const NAV_SUPERADMIN: { id: Page; icon: string; label: string } =
+  { id: "usuarios", icon: "fi fi-sr-users-alt", label: "USUARIOS" };
+
 export default function App() {
-  // Arranca autenticado si ya hay token guardado
-  const [authenticated, setAuthenticated] = useState<boolean>(
-    AuthService.isAuthenticated()
-  );
-  const [page, setPage] = useState<Page>("mantenimientos");
+  const [authenticated, setAuthenticated] = useState<boolean>(AuthService.isAuthenticated());
+  const [page, setPage] = useState<Page>("clientes");
 
   const handleLogin = () => setAuthenticated(true);
 
@@ -35,15 +36,15 @@ export default function App() {
     setAuthenticated(false);
   };
 
-  // ── Si no está autenticado → mostrar login ────────────────────────────────
   if (!authenticated) {
     return <LoginPage onLogin={handleLogin} />;
   }
 
-  // ── App principal ─────────────────────────────────────────────────────────
+  const isSuperAdmin = AuthService.getRol() === "SUPERADMIN";
+  const nav = isSuperAdmin ? [...NAV_BASE, NAV_SUPERADMIN] : NAV_BASE;
+
   return (
     <div className="app">
-      {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-logo">
           <h1>FarmaMotors</h1>
@@ -51,7 +52,7 @@ export default function App() {
         </div>
 
         <nav>
-          {NAV.map(n => (
+          {nav.map(n => (
             <button
               key={n.id}
               className={`nav-item ${page === n.id ? "active" : ""}`}
@@ -64,10 +65,7 @@ export default function App() {
         </nav>
 
         {/* Logout al fondo del sidebar */}
-        <div style={{
-          padding: "16px 14px",
-          borderTop: "1px solid rgba(255,255,255,0.06)"
-        }}>
+        <div style={{ padding: "16px 14px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <button
             onClick={handleLogout}
             style={{
@@ -91,14 +89,14 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Contenido principal */}
       <main className="main">
-        {page === "mantenimientos" && <MantenimientosPage />}
-        {page === "repuestos"      && <RepuestosPage />}
-        {page === "factura"        && <ComprobantePage />}
-        {page === "proveedor"      && <ProveedorPage />}
         {page === "clientes"       && <ClientesPage />}
+        {page === "proveedor"      && <ProveedorPage />}
+        {page === "repuestos"      && <RepuestosPage />}
+        {page === "mantenimientos" && <MantenimientosPage />}
+        {page === "factura"        && <ComprobantePage />}
         {page === "sunat"          && <SunatPage />}
+        {page === "usuarios"       && <UsuariosPage />}
       </main>
     </div>
   );

@@ -5,10 +5,38 @@ export interface LoginPayload {
   password: string;
 }
 
-export interface RegisterPayload {
+export interface UsuarioForm {
   name: string;
   email: string;
   password: string;
+  rol: "ADMIN";
+}
+
+export interface UsuarioItem {
+  id: number;
+  name: string;
+  email: string;
+  rol: string;
+  password: null;
+}
+
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem("jwt_token");
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+async function handleResponse<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  if (!res.ok) {
+    let msg = text || `Error ${res.status}`;
+    try { msg = JSON.parse(text).message || msg; } catch { /* no-op */ }
+    throw new Error(msg);
+  }
+  if (!text) return null as T;
+  try { return JSON.parse(text) as T; } catch { return text as unknown as T; }
 }
 
 export const AuthService = {
@@ -21,64 +49,60 @@ export const AuthService = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-    } catch (networkErr) {
-      console.error("[AuthService] Error de red al iniciar sesión. Verifica que el servidor esté activo:", networkErr);
-      throw new Error("Error al iniciar sesión.");
+    } catch {
+      throw new Error("Error de conexión con el servidor.");
     }
-
     const text = await res.text();
-
     if (!res.ok) {
-      if (res.status === 500) {
-        console.error(`[AuthService] Error del servidor (500) al iniciar sesión. Verifica el estado de la base de datos. Respuesta:`, text);
-        throw new Error("Error al iniciar sesión.");
-      }
-      let errorMsg = text || "Error al iniciar sesión.";
-      try {
-        const json = JSON.parse(text);
-        errorMsg = json.message || errorMsg;
-      } catch {
-        // respuesta no es JSON
-      }
-      throw new Error(errorMsg);
+      let msg = text || "Credenciales incorrectas.";
+      try { msg = JSON.parse(text).message || msg; } catch { /* no-op */ }
+      throw new Error(msg);
     }
-
     const token = text.trim();
     localStorage.setItem("jwt_token", token);
     return token;
-  },
-
-  register: async (payload: RegisterPayload): Promise<void> => {
-    let res: Response;
-    try {
-      res = await fetch(`${GATEWAY}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } catch (networkErr) {
-      console.error("[AuthService] Error de red al registrar. Verifica que el servidor esté activo:", networkErr);
-      throw new Error("Error al registrar.");
-    }
-    const text = await res.text();
-    if (!res.ok) {
-      if (res.status === 500) {
-        console.error(`[AuthService] Error del servidor (500) al registrar. Verifica el estado de la base de datos. Respuesta:`, text);
-        throw new Error("Error al registrar.");
-      }
-      throw new Error(text || "Error al registrar usuario.");
-    }
   },
 
   logout: (): void => {
     localStorage.removeItem("jwt_token");
   },
 
-  isAuthenticated: (): boolean => {
-    return !!localStorage.getItem("jwt_token");
+  isAuthenticated: (): boolean => !!localStorage.getItem("jwt_token"),
+
+  getToken: (): string | null => localStorage.getItem("jwt_token"),
+
+  getRol: (): string => {
+    const token = localStorage.getItem("jwt_token");
+    if (!token) return "";
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      return payload.rol || "";
+    } catch { return ""; }
   },
 
-  getToken: (): string | null => {
-    return localStorage.getItem("jwt_token");
+  // ── Gestión de usuarios (solo SUPERADMIN) ──────────────────────────────────
+
+  getUsuarios: async (): Promise<UsuarioItem[]> => {
+    let res: Response;
+    try {
+      res = await fetch(`${GATEWAY}/auth/usuarios`, { headers: authHeaders() });
+    } catch {
+      throw new Error("Error de conexión con el servidor.");
+    }
+    return handleResponse<UsuarioItem[]>(res);
+  },
+
+  createUser: async (data: UsuarioForm): Promise<void> => {
+    let res: Response;
+    try {
+      res = await fetch(`${GATEWAY}/auth/crearUsuario`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(data),
+      });
+    } catch {
+      throw new Error("Error de conexión con el servidor.");
+    }
+    await handleResponse<unknown>(res);
   },
 };
