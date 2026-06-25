@@ -1,15 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ComprobanteService } from "../service/ComprobanteService";
 import { MantenimientoService } from "../service/MantenimientoService";
 import { RepuestoService } from "../service/RepuestoService";
+import { ClienteService } from "../service/ClienteService";
 import type { Comprobante, DetalleRequest } from "../type/Comprobante";
 import type { Mantenimiento } from "../type/Mantenimiento";
 import type { Repuesto } from "../type/Repuesto";
+import type { Cliente } from "../type/Cliente";
 
 const FILA: DetalleRequest = { cod_Repuesto: 0, cantidad: 1 };
 
 function formatSerie(nro: string, corr: number) {
-  return `${nro}-${String(corr).padStart(5, "0")}`;
+  return `${nro}-${String(corr).padStart(8, "0")}`;
 }
 
 function getUsuarioJWT(): string {
@@ -17,7 +19,7 @@ function getUsuarioJWT(): string {
   if (!token) return "—";
   try {
     const payload = JSON.parse(atob(token.split(".")[1]));
-    return (payload.sub || payload.name || payload.username || "—").toUpperCase();
+    return (payload.name || payload.username || payload.sub || "—").toUpperCase();
   } catch {
     return "—";
   }
@@ -27,11 +29,15 @@ export default function ComprobantePage() {
   const [comprobantes, setComprobantes] = useState<Comprobante[]>([]);
   const [mantenimientos, setMants]      = useState<Mantenimiento[]>([]);
   const [repuestos, setRepuestos]       = useState<Repuesto[]>([]);
+  const [clientes, setClientes]         = useState<Cliente[]>([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState("");
 
   const [modalCrear, setModalCrear]     = useState(false);
   const [codMant, setCodMant]           = useState(0);
+  const [busquedaCli, setBusquedaCli]   = useState("");
+  const [mostrarSug, setMostrarSug]     = useState(false);
+  const searchRef                        = useRef<HTMLDivElement>(null);
   const [filas, setFilas]               = useState<DetalleRequest[]>([{ ...FILA }]);
   const [saving, setSaving]             = useState(false);
   const [formError, setFormError]       = useState("");
@@ -42,10 +48,11 @@ export default function ComprobantePage() {
   const cargar = async () => {
     try {
       setLoading(true);
-      const [comps, mants, reps] = await Promise.all([
-        ComprobanteService.getAll(), MantenimientoService.getAll(), RepuestoService.getAll(),
+      const [comps, mants, reps, clis] = await Promise.all([
+        ComprobanteService.getAll(), MantenimientoService.getAll(),
+        RepuestoService.getAll(), ClienteService.getAll(),
       ]);
-      setComprobantes(comps); setMants(mants); setRepuestos(reps); setError("");
+      setComprobantes(comps); setMants(mants); setRepuestos(reps); setClientes(clis); setError("");
     } catch {
       setError("Error al cargar datos.");
     } finally {
@@ -57,6 +64,22 @@ export default function ComprobantePage() {
 
   const mantsFinalizados = mantenimientos.filter(m => m.estado === "Finalizado");
   const mantSel = mantenimientos.find(m => m.cod_Mantenimiento === codMant);
+  const cliSel  = clientes.find(c => c.codCliente === mantSel?.cod_Cliente);
+
+  const sugerencias = mantsFinalizados.filter(m => {
+    if (!busquedaCli.trim()) return true;
+    const cli = clientes.find(c => c.codCliente === m.cod_Cliente);
+    if (!cli) return false;
+    const q = busquedaCli.toLowerCase();
+    return cli.nomRazSocial.toLowerCase().includes(q) || cli.numDocumento.includes(q);
+  });
+
+  const seleccionarMant = (m: Mantenimiento) => {
+    const cli = clientes.find(c => c.codCliente === m.cod_Cliente);
+    setCodMant(m.cod_Mantenimiento);
+    setBusquedaCli(cli ? cli.nomRazSocial : `Mant #${m.cod_Mantenimiento}`);
+    setMostrarSug(false);
+  };
 
   const subtotalRep = filas.reduce((acc, f) => {
     const r = repuestos.find(rp => rp.cod_Repuesto === f.cod_Repuesto);
@@ -67,8 +90,10 @@ export default function ComprobantePage() {
   const igvPreview   = Math.round((totalBruto - subTotalNeto) * 100) / 100;
 
   const abrirCrear = () => {
-    setCodMant(mantsFinalizados[0]?.cod_Mantenimiento ?? 0);
-    setFilas([{ cod_Repuesto: repuestos[0]?.cod_Repuesto ?? 0, cantidad: 1 }]);
+    setCodMant(0);
+    setBusquedaCli("");
+    setMostrarSug(false);
+    setFilas([]);
     setFormError(""); setModalCrear(true);
   };
 
@@ -83,10 +108,11 @@ export default function ComprobantePage() {
 
   const guardar = async (e: { preventDefault(): void }) => {
     e.preventDefault();
-    if (!codMant) { setFormError("Selecciona un mantenimiento."); return; }
-    if (filas.some(f => !f.cod_Repuesto)) { setFormError("Selecciona un repuesto en cada fila."); return; }
+    if (!codMant) { setFormError("Busca y selecciona un cliente con mantenimiento finalizado."); return; }
+    const filasValidas = filas.filter(f => f.cod_Repuesto > 0);
+    if (filasValidas.some(f => !f.cod_Repuesto)) { setFormError("Selecciona un repuesto en cada fila agregada."); return; }
     const totalPorRep: Record<number, number> = {};
-    for (const f of filas) {
+    for (const f of filasValidas) {
       totalPorRep[f.cod_Repuesto] = (totalPorRep[f.cod_Repuesto] ?? 0) + f.cantidad;
     }
     for (const [codRep, total] of Object.entries(totalPorRep)) {
@@ -98,7 +124,7 @@ export default function ComprobantePage() {
     }
     setSaving(true); setFormError("");
     try {
-      await ComprobanteService.create({ cod_Mantenimiento: codMant, repuestos: filas });
+      await ComprobanteService.create({ cod_Mantenimiento: codMant, repuestos: filasValidas });
       if (mantSel) {
         await MantenimientoService.update(codMant, {
           cod_Cliente: mantSel.cod_Cliente,
@@ -141,10 +167,6 @@ export default function ComprobantePage() {
           <p className="mod-sub">Emisión de boletas y facturas</p>
         </div>
         <div className="mod-right">
-          <div className="mod-stat">
-            <span className="mod-stat-val">{comprobantes.length}</span>
-            <span className="mod-stat-lbl">Emitidos</span>
-          </div>
           <button className="btn btn-primary btn-lg" onClick={abrirCrear} disabled={mantsFinalizados.length === 0}>
             + Emitir comprobante
           </button>
@@ -154,7 +176,7 @@ export default function ComprobantePage() {
       <div className="page-content">
         {mantsFinalizados.length === 0 && !loading && (
           <div className="alert alert-warning">
-            No hay mantenimientos en estado <strong>Finalizado</strong>. Cambia el estado en el módulo Mantenimientos para poder emitir.
+            No hay mantenimientos en estado <strong>Finalizado</strong>. Cambia el estado desde el módulo Mantenimientos para poder emitir comprobantes.
           </div>
         )}
         {error && <div className="alert alert-error">{error}</div>}
@@ -244,20 +266,61 @@ export default function ComprobantePage() {
             <form onSubmit={guardar}>
               <div className="modal-body">
 
-                {/* Mantenimiento */}
-                <div className="fg" style={{ marginBottom: 16 }}>
-                  <label className="flabel">Mantenimiento (estado: Finalizado)</label>
-                  <select className="finput" style={{ marginTop: 6 }} value={codMant}
-                    onChange={e => setCodMant(Number(e.target.value))} required>
-                    <option value={0} disabled>Seleccionar mantenimiento...</option>
-                    {mantsFinalizados.map(m => (
-                      <option key={m.cod_Mantenimiento} value={m.cod_Mantenimiento}>
-                        #{m.cod_Mantenimiento} — {m.motoPlaca} {m.motoModelo}
-                      </option>
-                    ))}
-                  </select>
+                {/* Buscador cliente → mantenimiento */}
+                <div className="fg" style={{ marginBottom: 16 }} ref={searchRef}>
+                  <label className="flabel">Cliente (estado mantenimiento: Finalizado)</label>
+                  <div style={{ position: "relative", marginTop: 6 }}>
+                    <input
+                      className="finput"
+                      placeholder="Buscar por nombre o RUC/DNI..."
+                      value={busquedaCli}
+                      autoComplete="off"
+                      onChange={e => { setBusquedaCli(e.target.value); setCodMant(0); setMostrarSug(true); }}
+                      onFocus={() => setMostrarSug(true)}
+                      onBlur={() => setTimeout(() => setMostrarSug(false), 150)}
+                    />
+                    {mostrarSug && (
+                      <div style={{
+                        position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50,
+                        background: "#fff", border: "1px solid #E2E8F0",
+                        boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
+                        maxHeight: 220, overflowY: "auto",
+                      }}>
+                        {sugerencias.length === 0 ? (
+                          <div style={{ padding: "10px 14px", fontSize: 13, color: "#94A3B8" }}>
+                            Sin resultados
+                          </div>
+                        ) : sugerencias.map(m => {
+                          const cli = clientes.find(c => c.codCliente === m.cod_Cliente);
+                          return (
+                            <div
+                              key={m.cod_Mantenimiento}
+                              onMouseDown={() => seleccionarMant(m)}
+                              style={{
+                                padding: "9px 14px", cursor: "pointer", borderBottom: "1px solid #F1F5F9",
+                                background: codMant === m.cod_Mantenimiento ? "#EFF6FF" : undefined,
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = "#F8FAFC")}
+                              onMouseLeave={e => (e.currentTarget.style.background = codMant === m.cod_Mantenimiento ? "#EFF6FF" : "")}
+                            >
+                              <div style={{ fontWeight: 600, fontSize: 13, color: "#0F172A" }}>
+                                {cli?.nomRazSocial ?? `Cliente #${m.cod_Cliente}`}
+                              </div>
+                              <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>
+                                {cli?.tipoDocumento} {cli?.numDocumento}
+                                &nbsp;·&nbsp;{m.motoPlaca} {m.motoModelo}
+                                &nbsp;·&nbsp;S/ {m.costoManoObra.toFixed(2)} M.O.
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                   {mantSel && (
                     <div className="info-card">
+                      <div className="info-card-field"><span>Cliente</span><strong>{cliSel?.nomRazSocial ?? "—"}</strong></div>
+                      <div className="info-card-field"><span>{cliSel?.tipoDocumento}</span><strong>{cliSel?.numDocumento ?? "—"}</strong></div>
                       <div className="info-card-field"><span>Placa</span><strong>{mantSel.motoPlaca}</strong></div>
                       <div className="info-card-field"><span>Modelo</span><strong>{mantSel.motoModelo}</strong></div>
                       <div className="info-card-field"><span>Costo M.O.</span><strong>S/ {mantSel.costoManoObra.toFixed(2)}</strong></div>
@@ -268,12 +331,17 @@ export default function ComprobantePage() {
                 {/* Repuestos dinámicos */}
                 <div style={{ marginBottom: 16 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                    <span className="sec-label">Repuestos utilizados</span>
+                    <span className="sec-label">Repuestos <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>(opcional)</span></span>
                     <button type="button" className="btn btn-success btn-sm" onClick={agregarFila}>
-                      + Agregar fila
+                      + Agregar repuesto
                     </button>
                   </div>
-                  <div className="table-wrap">
+                  {filas.length === 0 && (
+                    <p style={{ fontSize: 12.5, color: "var(--muted)", margin: "6px 0 0", fontStyle: "italic" }}>
+                      Sin repuestos — solo se cobrará la mano de obra.
+                    </p>
+                  )}
+                  {filas.length > 0 && <div className="table-wrap">
                     <table>
                       <thead>
                         <tr>
@@ -322,19 +390,17 @@ export default function ComprobantePage() {
                                 S/ {((rep?.precioUnitario ?? 0) * f.cantidad).toFixed(2)}
                               </td>
                               <td style={{ padding: "8px 10px", textAlign: "center" }}>
-                                {filas.length > 1 && (
-                                  <button type="button" onClick={() => quitarFila(i)}
-                                    style={{ background: "none", border: "none", color: "#DC2626", cursor: "pointer", fontSize: 18, fontWeight: 700, lineHeight: 1 }}>
-                                    ×
-                                  </button>
-                                )}
+                                <button type="button" onClick={() => quitarFila(i)}
+                                  style={{ background: "none", border: "none", color: "#DC2626", cursor: "pointer", fontSize: 18, fontWeight: 700, lineHeight: 1 }}>
+                                  ×
+                                </button>
                               </td>
                             </tr>
                           );
                         })}
                       </tbody>
                     </table>
-                  </div>
+                  </div>}
                 </div>
 
                 {/* Preview totales */}
@@ -405,11 +471,10 @@ export default function ComprobantePage() {
             {/* Servicio */}
             <p className="tk-section">DATOS DEL SERVICIO</p>
             <p className="tk-field"><span className="tk-key">PLACA MOTO:</span> {modalVer.motoPlaca}</p>
-            <p className="tk-field"><span className="tk-key">MANO DE OBRA:</span> S/ {modalVer.costoManoObra.toFixed(2)}</p>
 
             <div className="tk-dash" />
 
-            {/* Detalle repuestos */}
+            {/* Detalle */}
             <p className="tk-section">DESCRIPCIÓN</p>
             <div className="tk-det-header">
               <span className="tk-det-name">ARTÍCULO</span>
@@ -418,6 +483,21 @@ export default function ComprobantePage() {
               <span className="tk-det-tot">TOTAL</span>
             </div>
             <div className="tk-dash-thin" />
+            {modalVer.costoManoObra > 0 && (
+              <div className="tk-det-row">
+                <span className="tk-det-name" style={{ flexDirection: "column", alignItems: "flex-start" }}>
+                  MANO DE OBRA
+                  {modalVer.descripcionAveria && (
+                    <span style={{ fontSize: 10, color: "#64748B", fontWeight: 400, display: "block" }}>
+                      {modalVer.descripcionAveria}
+                    </span>
+                  )}
+                </span>
+                <span className="tk-det-um">UND</span>
+                <span className="tk-det-qty">1</span>
+                <span className="tk-det-tot">S/{modalVer.costoManoObra.toFixed(2)}</span>
+              </div>
+            )}
             {(modalVer.detalles ?? []).map(d => (
               <div key={d.cod_Detalle} className="tk-det-row">
                 <span className="tk-det-name">{d.nom_Repuesto.toUpperCase()}</span>

@@ -1,22 +1,24 @@
 // ─── App.tsx ──────────────────────────────────────────────────────────────────
 import { useState } from "react";
 import LoginPage from "./pages/Loginpage";
-import ClientesPage from "./pages/ClientesPage";
-import { ProveedorPage } from "./pages/ProveedorPage";
-import RepuestosPage from "./pages/RepuestosPage";
 import MantenimientosPage from "./pages/MantenimientosPage";
+import RepuestosPage from "./pages/RepuestosPage";
 import ComprobantePage from "./pages/ComprobantePage";
+import { ProveedorPage } from "./pages/ProveedorPage";
+import ClientesPage from "./pages/ClientesPage";
+import { SunatPage } from "./pages/SunatPage";
 import { AuthService } from "./service/Authservice";
 import "./App.css";
 
-type Page = "mantenimientos" | "repuestos" | "factura" | "proveedor" | "clientes";
+type Page = "mantenimientos" | "repuestos" | "factura" | "proveedor" | "clientes" | "sunat";
 
 const NAV: { id: Page; icon: string; label: string }[] = [
-  { id: "mantenimientos", icon: "🔧", label: "Mantenimientos" },
-  { id: "repuestos",      icon: "📦", label: "Repuestos" },
-  { id: "factura",        icon: "🧾", label: "Facturación" },
-  { id: "proveedor",      icon: "🏭", label: "Proveedores" },
-  { id: "clientes",       icon: "👤", label: "Clientes" },
+  { id: "clientes",       icon: "fi fi-sr-review",        label: "CLIENTES" },
+  { id: "proveedor",      icon: "fi fi-rs-supplier-alt",  label: "PROVEEDORES" },
+  { id: "repuestos",      icon: "fi fi-sr-tool-box",      label: "REPUESTOS" },
+  { id: "mantenimientos", icon: "fi fi-ss-tools",         label: "MANTENIMIENTOS" },
+  { id: "factura",        icon: "fi fi-ss-receipt",       label: "FACTURACIÓN" },
+  { id: "sunat",          icon: "fi fi-bs-chart-line-up", label: "SUNAT" },
 ];
 
 export default function App() {
@@ -44,7 +46,7 @@ export default function App() {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <h1>🏍️ FarmaMotors</h1>
+          <h1>FarmaMotors</h1>
           <span>Sistema de gestión</span>
         </div>
 
@@ -55,7 +57,7 @@ export default function App() {
               className={`nav-item ${page === n.id ? "active" : ""}`}
               onClick={() => setPage(n.id)}
             >
-              <span className="nav-icon">{n.icon}</span>
+              <i className={n.icon} style={{ fontSize: 15, width: 18, textAlign: "center", flexShrink: 0 }} />
               {n.label}
             </button>
           ))}
@@ -84,7 +86,7 @@ export default function App() {
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(220,38,38,0.2)"; }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(220,38,38,0.10)"; }}
           >
-            🚪 Cerrar sesión
+            Cerrar sesión
           </button>
         </div>
       </aside>
@@ -92,10 +94,11 @@ export default function App() {
       {/* Contenido principal */}
       <main className="main">
         {page === "mantenimientos" && <MantenimientosPage />}
-        {page === "clientes"       && <ClientesPage />}
-        {page === "proveedor"      && <ProveedorPage />}
         {page === "repuestos"      && <RepuestosPage />}
-        {page === "factura" && <ComprobantePage />}
+        {page === "factura"        && <ComprobantePage />}
+        {page === "proveedor"      && <ProveedorPage />}
+        {page === "clientes"       && <ClientesPage />}
+        {page === "sunat"          && <SunatPage />}
       </main>
     </div>
   );

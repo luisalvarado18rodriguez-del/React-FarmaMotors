@@ -6,6 +6,7 @@ export const BASE_URLS = {
   comprobante: GATEWAY,
   proveedor:   GATEWAY,
   cliente:     GATEWAY,
+  sunat:       GATEWAY,
 } as const;
 
 function tokenExpirado(token: string): boolean {

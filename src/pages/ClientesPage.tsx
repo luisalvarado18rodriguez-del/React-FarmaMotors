@@ -69,10 +69,6 @@ export default function ClientesPage() {
           <p className="mod-sub">Gestión de clientes del taller</p>
         </div>
         <div className="mod-right">
-          <div className="mod-stat">
-            <span className="mod-stat-val">{lista.length}</span>
-            <span className="mod-stat-lbl">Total</span>
-          </div>
           <button className="btn btn-primary btn-lg" onClick={abrirCrear}>+ Nuevo cliente</button>
         </div>
       </div>
@@ -169,12 +165,22 @@ export default function ClientesPage() {
                     <label className="flabel">N° Documento</label>
                     <input className="finput" inputMode="numeric" value={form.numDocumento}
                       maxLength={form.tipoDocumento === "DNI" ? 8 : 11}
+                      minLength={form.tipoDocumento === "DNI" ? 8 : 11}
                       onChange={e => {
                         const max = form.tipoDocumento === "DNI" ? 8 : 11;
                         const v = e.target.value.replace(/\D/g, "").slice(0, max);
                         if (form.tipoDocumento === "RUC" && v.length >= 2 && !v.startsWith("10") && !v.startsWith("20")) return;
                         setForm({ ...form, numDocumento: v });
                       }} required />
+                    {form.numDocumento.length > 0 && (() => {
+                      const req = form.tipoDocumento === "DNI" ? 8 : 11;
+                      const ok = form.numDocumento.length === req;
+                      return (
+                        <span style={{ fontSize: 11, marginTop: 3, color: ok ? "#059669" : "#DC2626" }}>
+                          {ok ? `✓ ${req}/${req} dígitos` : `${form.numDocumento.length}/${req} — faltan ${req - form.numDocumento.length} dígito${req - form.numDocumento.length > 1 ? "s" : ""}`}
+                        </span>
+                      );
+                    })()}
                   </div>
                   <div className="fgfull">
                     <label className="flabel">Nombre / Razón Social</label>

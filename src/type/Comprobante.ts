@@ -12,6 +12,7 @@ export interface Comprobante {
   nroSerie: string;
   correlativo: number;
   cod_Mantenimiento: number;
+  descripcionAveria: string;
   clienteNombre: string;
   tipoDocumento: string;
   clienteDocumento: string;

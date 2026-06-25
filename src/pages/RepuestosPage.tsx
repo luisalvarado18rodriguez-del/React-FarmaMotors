@@ -42,9 +42,6 @@ export default function RepuestosPage() {
     r.marcaRep.toLowerCase().includes(search.toLowerCase())
   );
 
-  const sinStock = lista.filter(r => r.stock === 0).length;
-  const stockBajo = lista.filter(r => r.stock > 0 && r.stock <= 10).length;
-
   const nomProv = (id: number) => proveedores.find(p => p.cod_Proveedor === id)?.nomRazSocial ?? `#${id}`;
 
   const abrirCrear = () => {
@@ -82,22 +79,6 @@ export default function RepuestosPage() {
           <p className="mod-sub">Control de inventario y stock</p>
         </div>
         <div className="mod-right">
-          {sinStock > 0 && (
-            <div className="mod-stat">
-              <span className="mod-stat-val" style={{ color: "#F87171" }}>{sinStock}</span>
-              <span className="mod-stat-lbl">Sin stock</span>
-            </div>
-          )}
-          {stockBajo > 0 && (
-            <div className="mod-stat">
-              <span className="mod-stat-val" style={{ color: "#FCD34D" }}>{stockBajo}</span>
-              <span className="mod-stat-lbl">Stock bajo</span>
-            </div>
-          )}
-          <div className="mod-stat">
-            <span className="mod-stat-val">{lista.length}</span>
-            <span className="mod-stat-lbl">Total</span>
-          </div>
           <button className="btn btn-primary btn-lg" onClick={abrirCrear}>+ Nuevo repuesto</button>
         </div>
       </div>

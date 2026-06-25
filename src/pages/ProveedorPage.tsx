@@ -70,10 +70,6 @@ export function ProveedorPage() {
           <p className="mod-sub">Gestión de proveedores de repuestos</p>
         </div>
         <div className="mod-right">
-          <div className="mod-stat">
-            <span className="mod-stat-val">{lista.length}</span>
-            <span className="mod-stat-lbl">Total</span>
-          </div>
           <button className="btn btn-primary btn-lg" onClick={abrirCrear}>+ Nuevo proveedor</button>
         </div>
       </div>
@@ -156,12 +152,17 @@ export function ProveedorPage() {
                   <div className="fg">
                     <label className="flabel">RUC</label>
                     <input className="finput" inputMode="numeric" value={form.ruc}
-                      maxLength={11}
+                      maxLength={11} minLength={11}
                       onChange={e => {
                         const v = e.target.value.replace(/\D/g, "").slice(0, 11);
                         if (v.length >= 2 && !v.startsWith("10") && !v.startsWith("20")) return;
                         setForm({ ...form, ruc: v });
                       }} required />
+                    {form.ruc.length > 0 && (
+                      <span style={{ fontSize: 11, marginTop: 3, color: form.ruc.length === 11 ? "#059669" : "#DC2626" }}>
+                        {form.ruc.length === 11 ? "✓ 11/11 dígitos" : `${form.ruc.length}/11 — faltan ${11 - form.ruc.length} dígito${11 - form.ruc.length > 1 ? "s" : ""}`}
+                      </span>
+                    )}
                   </div>
                   <div className="fg">
                     <label className="flabel">Nombre / Razón Social</label>

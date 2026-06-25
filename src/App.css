@@ -165,6 +165,7 @@ tbody td {
   padding: 13px 16px;
   border-bottom: 1px solid #F1F5F9;
   vertical-align: middle; font-size: 13.5px; color: var(--text-2);
+  text-transform: uppercase;
 }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: #F8FAFC; }
